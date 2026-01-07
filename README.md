@@ -56,3 +56,30 @@ This repository currently contains a **basic Next.js setup**, which will be expa
   Stores static files such as icons and images.
 
 ---
+
+## Setup Instructions
+
+### 1. Install dependencies
+```bash
+npm install
+```
+### 2. Run the development server
+```bash
+npm run dev
+```
+### 3. Open the app in browser
+```bash
+http://localhost:3000
+```
+
+## Reflection
+
+This structure follows the default Next.js App Router convention, keeping the project simple and easy to understand for all team members.
+
+Clear separation between routing (app/) and static assets (public/)
+
+Easy to introduce new pages like dashboard, login, and admin panels
+
+Supports gradual addition of APIs, authentication, and database logic
+
+Prevents over-engineering in early stages while allowing smooth scaling.
