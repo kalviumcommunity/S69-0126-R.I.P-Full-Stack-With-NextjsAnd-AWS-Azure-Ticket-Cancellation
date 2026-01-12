@@ -33,12 +33,13 @@ export async function GET(
     }
 
     return sendSuccess(user, "User fetched successfully", 200);
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
       "Failed to fetch user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -53,7 +54,7 @@ export async function PUT(
 ) {
   try {
     const userId = parseInt(params.id);
-    const body = await request.json();
+    const body: { name?: string; email?: string } = await request.json();
 
     if (isNaN(userId)) {
       return sendError(
@@ -63,7 +64,6 @@ export async function PUT(
       );
     }
 
-    // Validation
     if (!body.name || !body.email) {
       return sendError(
         "Name and email are required",
@@ -71,28 +71,6 @@ export async function PUT(
         400
       );
     }
-
-    // TODO: Check if user exists
-    // const existingUser = await db.user.findUnique({ where: { id: userId } });
-    // if (!existingUser) {
-    //   return sendError(
-    //     'User not found',
-    //     ERROR_CODES.NOT_FOUND,
-    //     404
-    //   );
-    // }
-
-    // TODO: Check if email is taken by another user
-    // const emailTaken = await db.user.findFirst({
-    //   where: { email: body.email, NOT: { id: userId } },
-    // });
-    // if (emailTaken) {
-    //   return sendError(
-    //     'Email already exists',
-    //     ERROR_CODES.DUPLICATE_RESOURCE,
-    //     409
-    //   );
-    // }
 
     // TODO: Update user in database
     // const updatedUser = await db.user.update({
@@ -102,12 +80,13 @@ export async function PUT(
     const updatedUser = { id: userId, name: body.name, email: body.email };
 
     return sendSuccess(updatedUser, "User updated successfully", 200);
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
       "Failed to update user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -122,7 +101,7 @@ export async function PATCH(
 ) {
   try {
     const userId = parseInt(params.id);
-    const body = await request.json();
+    const body: { name?: string; email?: string } = await request.json();
 
     if (isNaN(userId)) {
       return sendError(
@@ -132,47 +111,20 @@ export async function PATCH(
       );
     }
 
-    // TODO: Check if user exists
-    // const existingUser = await db.user.findUnique({ where: { id: userId } });
-    // if (!existingUser) {
-    //   return sendError(
-    //     'User not found',
-    //     ERROR_CODES.NOT_FOUND,
-    //     404
-    //   );
-    // }
+    const updateData: Record<string, unknown> = {};
+    if (body.name) updateData.name = body.name;
+    if (body.email) updateData.email = body.email;
 
-    // TODO: Check if email is taken by another user
-    // if (body.email) {
-    //   const emailTaken = await db.user.findFirst({
-    //     where: { email: body.email, NOT: { id: userId } },
-    //   });
-    //   if (emailTaken) {
-    //     return sendError(
-    //       'Email already exists',
-    //       ERROR_CODES.DUPLICATE_RESOURCE,
-    //       409
-    //     );
-    //   }
-    // }
-
-    // TODO: Partial update in database
-    // const updateData: any = {};
-    // if (body.name) updateData.name = body.name;
-    // if (body.email) updateData.email = body.email;
-    // const updatedUser = await db.user.update({
-    //   where: { id: userId },
-    //   data: updateData,
-    // });
-    const updatedUser = { id: userId, ...body };
+    const updatedUser = { id: userId, ...updateData };
 
     return sendSuccess(updatedUser, "User updated successfully", 200);
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
       "Failed to update user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -196,27 +148,18 @@ export async function DELETE(
       );
     }
 
-    // TODO: Check if user exists and delete from database
-    // const user = await db.user.findUnique({ where: { id: userId } });
-    // if (!user) {
-    //   return sendError(
-    //     'User not found',
-    //     ERROR_CODES.NOT_FOUND,
-    //     404
-    //   );
-    // }
-
     // TODO: Delete user from database
     // const deletedUser = await db.user.delete({ where: { id: userId } });
     const deletedUser = { id: userId, name: "", email: "" };
 
     return sendSuccess(deletedUser, "User deleted successfully", 200);
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
       "Failed to delete user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
