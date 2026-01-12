@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { sendSuccess, sendError } from '@/lib/responseHandler';
+import { ERROR_CODES } from '@/lib/errorCodes';
 
 // TODO: Import your database client here
 // import { db } from '@/lib/db';
@@ -15,9 +17,10 @@ export async function GET(
     const userId = parseInt(params.id);
 
     if (isNaN(userId)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid user ID' },
-        { status: 400 }
+      return sendError(
+        'Invalid user ID format',
+        ERROR_CODES.INVALID_FORMAT,
+        400
       );
     }
 
@@ -26,20 +29,20 @@ export async function GET(
     const user = null;
 
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 404 }
+      return sendError(
+        'User not found',
+        ERROR_CODES.NOT_FOUND,
+        404
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: user,
-    });
+    return sendSuccess(user, 'User fetched successfully', 200);
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch user' },
-      { status: 500 }
+    return sendError(
+      'Failed to fetch user',
+      ERROR_CODES.DATABASE_FAILURE,
+      500,
+      error
     );
   }
 }
@@ -57,26 +60,29 @@ export async function PUT(
     const body = await request.json();
 
     if (isNaN(userId)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid user ID' },
-        { status: 400 }
+      return sendError(
+        'Invalid user ID format',
+        ERROR_CODES.INVALID_FORMAT,
+        400
       );
     }
 
     // Validation
     if (!body.name || !body.email) {
-      return NextResponse.json(
-        { success: false, error: 'Name and email are required' },
-        { status: 400 }
+      return sendError(
+        'Name and email are required',
+        ERROR_CODES.MISSING_FIELD,
+        400
       );
     }
 
     // TODO: Check if user exists
     // const existingUser = await db.user.findUnique({ where: { id: userId } });
     // if (!existingUser) {
-    //   return NextResponse.json(
-    //     { success: false, error: 'User not found' },
-    //     { status: 404 }
+    //   return sendError(
+    //     'User not found',
+    //     ERROR_CODES.NOT_FOUND,
+    //     404
     //   );
     // }
 
@@ -85,9 +91,10 @@ export async function PUT(
     //   where: { email: body.email, NOT: { id: userId } },
     // });
     // if (emailTaken) {
-    //   return NextResponse.json(
-    //     { success: false, error: 'Email already exists' },
-    //     { status: 409 }
+    //   return sendError(
+    //     'Email already exists',
+    //     ERROR_CODES.DUPLICATE_RESOURCE,
+    //     409
     //   );
     // }
 
@@ -98,15 +105,13 @@ export async function PUT(
     // });
     const updatedUser = { id: userId, name: body.name, email: body.email };
 
-    return NextResponse.json({
-      success: true,
-      data: updatedUser,
-      message: 'User updated successfully',
-    });
+    return sendSuccess(updatedUser, 'User updated successfully', 200);
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Failed to update user' },
-      { status: 500 }
+    return sendError(
+      'Failed to update user',
+      ERROR_CODES.DATABASE_FAILURE,
+      500,
+      error
     );
   }
 }
@@ -124,18 +129,20 @@ export async function PATCH(
     const body = await request.json();
 
     if (isNaN(userId)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid user ID' },
-        { status: 400 }
+      return sendError(
+        'Invalid user ID format',
+        ERROR_CODES.INVALID_FORMAT,
+        400
       );
     }
 
     // TODO: Check if user exists
     // const existingUser = await db.user.findUnique({ where: { id: userId } });
     // if (!existingUser) {
-    //   return NextResponse.json(
-    //     { success: false, error: 'User not found' },
-    //     { status: 404 }
+    //   return sendError(
+    //     'User not found',
+    //     ERROR_CODES.NOT_FOUND,
+    //     404
     //   );
     // }
 
@@ -145,9 +152,10 @@ export async function PATCH(
     //     where: { email: body.email, NOT: { id: userId } },
     //   });
     //   if (emailTaken) {
-    //     return NextResponse.json(
-    //       { success: false, error: 'Email already exists' },
-    //       { status: 409 }
+    //     return sendError(
+    //       'Email already exists',
+    //       ERROR_CODES.DUPLICATE_RESOURCE,
+    //       409
     //     );
     //   }
     // }
@@ -162,15 +170,13 @@ export async function PATCH(
     // });
     const updatedUser = { id: userId, ...body };
 
-    return NextResponse.json({
-      success: true,
-      data: updatedUser,
-      message: 'User updated successfully',
-    });
+    return sendSuccess(updatedUser, 'User updated successfully', 200);
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Failed to update user' },
-      { status: 500 }
+    return sendError(
+      'Failed to update user',
+      ERROR_CODES.DATABASE_FAILURE,
+      500,
+      error
     );
   }
 }
@@ -187,18 +193,20 @@ export async function DELETE(
     const userId = parseInt(params.id);
 
     if (isNaN(userId)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid user ID' },
-        { status: 400 }
+      return sendError(
+        'Invalid user ID format',
+        ERROR_CODES.INVALID_FORMAT,
+        400
       );
     }
 
     // TODO: Check if user exists and delete from database
     // const user = await db.user.findUnique({ where: { id: userId } });
     // if (!user) {
-    //   return NextResponse.json(
-    //     { success: false, error: 'User not found' },
-    //     { status: 404 }
+    //   return sendError(
+    //     'User not found',
+    //     ERROR_CODES.NOT_FOUND,
+    //     404
     //   );
     // }
 
@@ -206,15 +214,13 @@ export async function DELETE(
     // const deletedUser = await db.user.delete({ where: { id: userId } });
     const deletedUser = { id: userId, name: '', email: '' };
 
-    return NextResponse.json({
-      success: true,
-      data: deletedUser,
-      message: 'User deleted successfully',
-    });
+    return sendSuccess(deletedUser, 'User deleted successfully', 200);
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Failed to delete user' },
-      { status: 500 }
+    return sendError(
+      'Failed to delete user',
+      ERROR_CODES.DATABASE_FAILURE,
+      500,
+      error
     );
   }
 }
