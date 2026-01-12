@@ -1,6 +1,6 @@
-import { NextRequest } from 'next/server';
-import { sendSuccess, sendError } from '@/lib/responseHandler';
-import { ERROR_CODES } from '@/lib/errorCodes';
+import { NextRequest } from "next/server";
+import { sendSuccess, sendError } from "@/lib/responseHandler";
+import { ERROR_CODES } from "@/lib/errorCodes";
 
 // TODO: Import your database client here
 // import { db } from '@/lib/db';
@@ -10,7 +10,7 @@ import { ERROR_CODES } from '@/lib/errorCodes';
  * Get user by ID
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -18,7 +18,7 @@ export async function GET(
 
     if (isNaN(userId)) {
       return sendError(
-        'Invalid user ID format',
+        "Invalid user ID format",
         ERROR_CODES.INVALID_FORMAT,
         400
       );
@@ -29,20 +29,17 @@ export async function GET(
     const user = null;
 
     if (!user) {
-      return sendError(
-        'User not found',
-        ERROR_CODES.NOT_FOUND,
-        404
-      );
+      return sendError("User not found", ERROR_CODES.NOT_FOUND, 404);
     }
 
-    return sendSuccess(user, 'User fetched successfully', 200);
-  } catch (error) {
+    return sendSuccess(user, "User fetched successfully", 200);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
-      'Failed to fetch user',
+      "Failed to fetch user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -57,46 +54,23 @@ export async function PUT(
 ) {
   try {
     const userId = parseInt(params.id);
-    const body = await request.json();
+    const body: { name?: string; email?: string } = await request.json();
 
     if (isNaN(userId)) {
       return sendError(
-        'Invalid user ID format',
+        "Invalid user ID format",
         ERROR_CODES.INVALID_FORMAT,
         400
       );
     }
 
-    // Validation
     if (!body.name || !body.email) {
       return sendError(
-        'Name and email are required',
+        "Name and email are required",
         ERROR_CODES.MISSING_FIELD,
         400
       );
     }
-
-    // TODO: Check if user exists
-    // const existingUser = await db.user.findUnique({ where: { id: userId } });
-    // if (!existingUser) {
-    //   return sendError(
-    //     'User not found',
-    //     ERROR_CODES.NOT_FOUND,
-    //     404
-    //   );
-    // }
-
-    // TODO: Check if email is taken by another user
-    // const emailTaken = await db.user.findFirst({
-    //   where: { email: body.email, NOT: { id: userId } },
-    // });
-    // if (emailTaken) {
-    //   return sendError(
-    //     'Email already exists',
-    //     ERROR_CODES.DUPLICATE_RESOURCE,
-    //     409
-    //   );
-    // }
 
     // TODO: Update user in database
     // const updatedUser = await db.user.update({
@@ -105,13 +79,14 @@ export async function PUT(
     // });
     const updatedUser = { id: userId, name: body.name, email: body.email };
 
-    return sendSuccess(updatedUser, 'User updated successfully', 200);
-  } catch (error) {
+    return sendSuccess(updatedUser, "User updated successfully", 200);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
-      'Failed to update user',
+      "Failed to update user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -126,57 +101,30 @@ export async function PATCH(
 ) {
   try {
     const userId = parseInt(params.id);
-    const body = await request.json();
+    const body: { name?: string; email?: string } = await request.json();
 
     if (isNaN(userId)) {
       return sendError(
-        'Invalid user ID format',
+        "Invalid user ID format",
         ERROR_CODES.INVALID_FORMAT,
         400
       );
     }
 
-    // TODO: Check if user exists
-    // const existingUser = await db.user.findUnique({ where: { id: userId } });
-    // if (!existingUser) {
-    //   return sendError(
-    //     'User not found',
-    //     ERROR_CODES.NOT_FOUND,
-    //     404
-    //   );
-    // }
+    const updateData: Record<string, unknown> = {};
+    if (body.name) updateData.name = body.name;
+    if (body.email) updateData.email = body.email;
 
-    // TODO: Check if email is taken by another user
-    // if (body.email) {
-    //   const emailTaken = await db.user.findFirst({
-    //     where: { email: body.email, NOT: { id: userId } },
-    //   });
-    //   if (emailTaken) {
-    //     return sendError(
-    //       'Email already exists',
-    //       ERROR_CODES.DUPLICATE_RESOURCE,
-    //       409
-    //     );
-    //   }
-    // }
+    const updatedUser = { id: userId, ...updateData };
 
-    // TODO: Partial update in database
-    // const updateData: any = {};
-    // if (body.name) updateData.name = body.name;
-    // if (body.email) updateData.email = body.email;
-    // const updatedUser = await db.user.update({
-    //   where: { id: userId },
-    //   data: updateData,
-    // });
-    const updatedUser = { id: userId, ...body };
-
-    return sendSuccess(updatedUser, 'User updated successfully', 200);
-  } catch (error) {
+    return sendSuccess(updatedUser, "User updated successfully", 200);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
-      'Failed to update user',
+      "Failed to update user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -186,7 +134,7 @@ export async function PATCH(
  * Delete a user
  */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -194,33 +142,24 @@ export async function DELETE(
 
     if (isNaN(userId)) {
       return sendError(
-        'Invalid user ID format',
+        "Invalid user ID format",
         ERROR_CODES.INVALID_FORMAT,
         400
       );
     }
 
-    // TODO: Check if user exists and delete from database
-    // const user = await db.user.findUnique({ where: { id: userId } });
-    // if (!user) {
-    //   return sendError(
-    //     'User not found',
-    //     ERROR_CODES.NOT_FOUND,
-    //     404
-    //   );
-    // }
-
     // TODO: Delete user from database
     // const deletedUser = await db.user.delete({ where: { id: userId } });
-    const deletedUser = { id: userId, name: '', email: '' };
+    const deletedUser = { id: userId, name: "", email: "" };
 
-    return sendSuccess(deletedUser, 'User deleted successfully', 200);
-  } catch (error) {
+    return sendSuccess(deletedUser, "User deleted successfully", 200);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
-      'Failed to delete user',
+      "Failed to delete user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
