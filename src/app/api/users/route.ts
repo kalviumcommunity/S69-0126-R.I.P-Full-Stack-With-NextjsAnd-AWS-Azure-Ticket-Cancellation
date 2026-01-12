@@ -1,6 +1,6 @@
-import { NextRequest } from 'next/server';
-import { sendSuccess, sendError } from '@/lib/responseHandler';
-import { ERROR_CODES } from '@/lib/errorCodes';
+import { NextRequest } from "next/server";
+import { sendSuccess, sendError } from "@/lib/responseHandler";
+import { ERROR_CODES } from "@/lib/errorCodes";
 
 // TODO: Import your database client here
 // import { db } from '@/lib/db';
@@ -13,15 +13,16 @@ export async function GET() {
   try {
     // TODO: Replace with database query
     // const users = await db.user.findMany();
-    const users: any[] = [];
-    
-    return sendSuccess(users, 'Users fetched successfully', 200);
-  } catch (error) {
+    const users: { id: number; name: string; email: string }[] = [];
+
+    return sendSuccess(users, "Users fetched successfully", 200);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
-      'Failed to fetch users',
+      "Failed to fetch users",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -32,12 +33,12 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    
+    const body: { name?: string; email?: string } = await request.json();
+
     // Validation
     if (!body.name || !body.email) {
       return sendError(
-        'Name and email are required',
+        "Name and email are required",
         ERROR_CODES.MISSING_FIELD,
         400
       );
@@ -54,21 +55,17 @@ export async function POST(request: NextRequest) {
     // }
 
     // TODO: Create user in database
-    // const newUser = await db.user.create({
-    //   data: {
-    //     name: body.name,
-    //     email: body.email,
-    //   },
-    // });
+    // const newUser = await db.user.create({ data: { name: body.name, email: body.email } });
     const newUser = { id: 0, name: body.name, email: body.email };
 
-    return sendSuccess(newUser, 'User created successfully', 201);
-  } catch (error) {
+    return sendSuccess(newUser, "User created successfully", 201);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
-      'Failed to create user',
+      "Failed to create user",
       ERROR_CODES.INTERNAL_ERROR,
       500,
-      error
+      errorMessage
     );
   }
 }
