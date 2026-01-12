@@ -76,6 +76,127 @@ http://localhost:3000
 
 ## API Documentation
 
+### Unified Response Envelope
+
+Every API endpoint follows a standardized response format to ensure consistency, improve debugging, and enhance developer experience.
+
+#### Response Structure
+
+All responses include the following envelope:
+
+```json
+{
+  "success": boolean,
+  "message": string,
+  "data"?: any,
+  "error"?: {
+    "code": string,
+    "details"?: string
+  },
+  "timestamp": string
+}
+```
+
+**Field Descriptions:**
+- **`success`** — Boolean indicating whether the request succeeded (`true`) or failed (`false`)
+- **`message`** — Human-readable message describing the result
+- **`data`** — Response payload (only present on successful requests)
+- **`error`** — Error details object (only present on failed requests)
+  - **`code`** — Machine-readable error code (e.g., `VALIDATION_ERROR`, `NOT_FOUND`)
+  - **`details`** — Optional additional error context
+- **`timestamp`** — ISO 8601 timestamp when the response was generated
+
+#### Success Response Example
+
+```json
+{
+  "success": true,
+  "message": "User created successfully",
+  "data": {
+    "id": 12,
+    "name": "Charlie",
+    "email": "charlie@example.com"
+  },
+  "timestamp": "2025-10-30T10:00:00.000Z"
+}
+```
+
+#### Error Response Example
+
+```json
+{
+  "success": false,
+  "message": "Missing required field: name",
+  "error": {
+    "code": "MISSING_FIELD",
+    "details": null
+  },
+  "timestamp": "2025-10-30T10:00:00.000Z"
+}
+```
+
+---
+
+### Error Codes Reference
+
+The API uses standardized error codes for programmatic error handling:
+
+| Error Code | HTTP Status | Description |
+|------------|------------|-------------|
+| `VALIDATION_ERROR` | 400 | General validation failure |
+| `MISSING_FIELD` | 400 | Required field is missing |
+| `INVALID_FORMAT` | 400 | Field format is invalid |
+| `NOT_FOUND` | 404 | Resource does not exist |
+| `DUPLICATE_RESOURCE` | 409 | Resource already exists |
+| `RESOURCE_CONFLICT` | 409 | Resource conflict during operation |
+| `DATABASE_FAILURE` | 500 | Database operation failed |
+| `INTERNAL_ERROR` | 500 | Internal server error |
+
+---
+
+### Global Response Handler
+
+The application uses a centralized response handler utility (`lib/responseHandler.ts`) to ensure consistent formatting across all endpoints.
+
+#### Implementation in Routes
+
+**Using the response handler:**
+
+```typescript
+import { sendSuccess, sendError } from '@/lib/responseHandler';
+import { ERROR_CODES } from '@/lib/errorCodes';
+
+// Success response
+export async function GET() {
+  const users = [{ id: 1, name: "Alice" }];
+  return sendSuccess(users, "Users fetched successfully", 200);
+}
+
+// Error response
+export async function POST(request: Request) {
+  try {
+    const data = await request.json();
+    if (!data.title) {
+      return sendError(
+        "Missing required field: title",
+        ERROR_CODES.MISSING_FIELD,
+        400
+      );
+    }
+    return sendSuccess(data, "Task created successfully", 201);
+  } catch (err) {
+    return sendError(
+      "Internal Server Error",
+      ERROR_CODES.INTERNAL_ERROR,
+      500,
+      err
+    );
+  }
+}
+```
+
+---
+
 ### API Route Hierarchy
 
 The application provides a RESTful API under `/api/` for managing resources:
@@ -120,6 +241,7 @@ curl -X GET http://localhost:3000/api/users
 ```json
 {
   "success": true,
+  "message": "Users fetched successfully",
   "data": [
     {
       "id": 1,
@@ -132,7 +254,7 @@ curl -X GET http://localhost:3000/api/users
       "email": "jane@example.com"
     }
   ],
-  "count": 2
+  "timestamp": "2025-10-30T10:00:00.000Z"
 }
 ```
 
@@ -154,12 +276,13 @@ curl -X POST http://localhost:3000/api/users \
 ```json
 {
   "success": true,
+  "message": "User created successfully",
   "data": {
     "id": 3,
     "name": "Alice Johnson",
     "email": "alice@example.com"
   },
-  "message": "User created successfully"
+  "timestamp": "2025-10-30T10:00:00.000Z"
 }
 ```
 
@@ -167,7 +290,12 @@ curl -X POST http://localhost:3000/api/users \
 ```json
 {
   "success": false,
-  "error": "Name and email are required"
+  "message": "Name and email are required",
+  "error": {
+    "code": "MISSING_FIELD",
+    "details": null
+  },
+  "timestamp": "2025-10-30T10:00:00.000Z"
 }
 ```
 
@@ -175,7 +303,12 @@ curl -X POST http://localhost:3000/api/users \
 ```json
 {
   "success": false,
-  "error": "Email already exists"
+  "message": "Email already exists",
+  "error": {
+    "code": "DUPLICATE_RESOURCE",
+    "details": null
+  },
+  "timestamp": "2025-10-30T10:00:00.000Z"
 }
 ```
 
@@ -192,11 +325,13 @@ curl -X GET http://localhost:3000/api/users/1
 ```json
 {
   "success": true,
+  "message": "User fetched successfully",
   "data": {
     "id": 1,
     "name": "John Doe",
     "email": "john@example.com"
-  }
+  },
+  "timestamp": "2025-10-30T10:00:00.000Z"
 }
 ```
 
@@ -204,7 +339,12 @@ curl -X GET http://localhost:3000/api/users/1
 ```json
 {
   "success": false,
-  "error": "User not found"
+  "message": "User not found",
+  "error": {
+    "code": "NOT_FOUND",
+    "details": null
+  },
+  "timestamp": "2025-10-30T10:00:00.000Z"
 }
 ```
 
@@ -226,12 +366,13 @@ curl -X PUT http://localhost:3000/api/users/1 \
 ```json
 {
   "success": true,
+  "message": "User updated successfully",
   "data": {
     "id": 1,
     "name": "John Updated",
     "email": "john.updated@example.com"
   },
-  "message": "User updated successfully"
+  "timestamp": "2025-10-30T10:00:00.000Z"
 }
 ```
 
@@ -252,12 +393,13 @@ curl -X PATCH http://localhost:3000/api/users/1 \
 ```json
 {
   "success": true,
+  "message": "User updated successfully",
   "data": {
     "id": 1,
     "name": "John Partially Updated",
     "email": "john@example.com"
   },
-  "message": "User updated successfully"
+  "timestamp": "2025-10-30T10:00:00.000Z"
 }
 ```
 
@@ -274,12 +416,13 @@ curl -X DELETE http://localhost:3000/api/users/1
 ```json
 {
   "success": true,
+  "message": "User deleted successfully",
   "data": {
     "id": 1,
     "name": "John Doe",
     "email": "john@example.com"
   },
-  "message": "User deleted successfully"
+  "timestamp": "2025-10-30T10:00:00.000Z"
 }
 ```
 
@@ -299,84 +442,102 @@ GET /api/users?page=1&limit=10
 
 All errors follow a consistent structure:
 
-| Status Code | Meaning | Example |
-|-------------|---------|---------|
-| **400** | Bad Request | Invalid input data or missing required fields |
-| **404** | Not Found | Resource does not exist |
-| **409** | Conflict | Duplicate resource (e.g., email already exists) |
-| **500** | Internal Server Error | Server-side error or database failure |
-
-**Standard error format:**
-```json
-{
-  "success": false,
-  "error": "Descriptive error message"
-}
-```
+| Status Code | Error Code | Meaning |
+|-------------|-----------|---------|
+| **400** | `VALIDATION_ERROR`, `MISSING_FIELD`, `INVALID_FORMAT` | Bad Request - Invalid input or missing data |
+| **404** | `NOT_FOUND` | Resource does not exist |
+| **409** | `DUPLICATE_RESOURCE`, `RESOURCE_CONFLICT` | Conflict - Resource already exists or state conflict |
+| **500** | `DATABASE_FAILURE`, `INTERNAL_ERROR` | Internal Server Error - Server-side failure |
 
 ---
 
 
 
-## Reflection on API Design
+## Developer Experience & Observability Benefits
 
-### How Consistent Naming Improves Maintainability
+### Why a Unified Response Envelope Matters
 
-**1. Predictable URL Structure**
-- Using RESTful conventions (`/api/users` for collection, `/api/users/:id` for specific resource) makes the API intuitive
-- Developers can predict endpoint URLs without documentation
-- Reduces onboarding time for new team members
+The global response handler serves as the API's "unified voice" — ensuring every endpoint speaks in the same tone, regardless of who wrote it.
 
-**2. Standard HTTP Verb Mapping**
-- Each verb has a clear, single purpose (GET = read, POST = create, etc.)
-- Prevents confusion about which endpoint to use for specific actions
-- Makes API behavior consistent with industry standards
+#### 1. **Debugging & Error Tracking**
+- Every error includes a machine-readable code (e.g., `VALIDATION_ERROR`, `NOT_FOUND`)
+- Timestamps on all responses make it easy to correlate with server logs
+- Error details are standardized, enabling automated error tracking tools (Sentry, DataDog, etc.)
 
-**3. Consistent Response Format**
-- Every response includes `success` boolean and either `data` or `error`
-- Standardized error messages across all endpoints
-- Frontend can handle responses uniformly, reducing error-prone conditional logic
+#### 2. **Frontend Developer Experience**
+- Single response schema across all endpoints eliminates conditional logic
+- Predictable error handling: frontends can use the same error handler for all responses
+- Clear `success` boolean allows easy branching: `if (response.success) { ... } else { ... }`
 
-**4. Clear Separation: PUT vs PATCH**
-- **PUT** requires all fields (full replacement)
-- **PATCH** allows partial updates (send only changed fields)
-- This distinction prevents accidental data loss and makes intent explicit
+Example frontend code:
+```typescript
+const response = await fetch('/api/users');
+const result = await response.json();
 
-**5. Reduces Integration Errors**
-- Consistent field names (`id`, `name`, `email`) across all endpoints
-- Status codes follow HTTP standards (201 for creation, 404 for not found)
-- Validation errors are descriptive and actionable
+if (result.success) {
+  // Use result.data
+} else {
+  // Handle error with result.error.code
+  console.error(`Error [${result.error.code}]: ${result.message}`);
+}
+```
 
-**6. Easier Testing and Documentation**
-- Uniform patterns make automated testing straightforward
-- API documentation can follow a template
-- Mock responses are predictable
+#### 3. **Team Communication**
+- New team members instantly understand the API response format
+- No ambiguity about how errors are reported
+- Documentation becomes straightforward: "Every endpoint follows this schema"
 
-**7. Future-Proof Scalability**
-- Adding new resources (e.g., `/api/tickets`, `/api/refunds`) follows the same pattern
-- Query parameters for pagination/filtering can be standardized
-- Middleware for authentication/authorization applies uniformly
+#### 4. **Production Monitoring**
+- Consistent timestamps enable correlation with monitoring dashboards
+- Error codes allow alerting based on specific failure types
+- Log aggregation tools can easily parse and categorize issues
 
-### Impact on This Project
+Example Sentry integration:
+```typescript
+if (!result.success) {
+  Sentry.captureException(new Error(result.message), {
+    tags: {
+      errorCode: result.error.code,
+      statusCode: response.status,
+    },
+    extra: { details: result.error.details },
+  });
+}
+```
 
-For the Ticket Cancellation system, this consistent API design will:
-- Enable reliable integration between frontend booking interface and backend
-- Make it easy to add new resources (tickets, refunds, cancellations)
-- Provide clear contracts for third-party integrations (payment gateways, bus operators)
-- Facilitate automated testing and monitoring
-- Reduce debugging time with predictable error handling
+#### 5. **Testing & CI/CD**
+- Response schema is predictable and testable
+- Automated tests can validate the envelope structure
+- Mock responses are consistent, reducing test brittleness
+
+#### 6. **Third-Party Integrations**
+- Payment gateways, analytics, and external services expect consistent APIs
+- Clear error codes enable integration logic (retry on `DATABASE_FAILURE`, skip on `VALIDATION_ERROR`)
+- Documentation for partners is simpler and more professional
 
 ---
 
 ## Reflection
 
-This structure follows the default Next.js App Router convention, keeping the project simple and easy to understand for all team members.
+### API Design Philosophy
 
-Clear separation between routing (app/) and static assets (public/)
+The Ticket Cancellation system's API is built on these core principles:
 
-Easy to introduce new pages like dashboard, login, and admin panels
+1. **Consistency First** — Every response follows the same envelope structure
+2. **Clarity Over Brevity** — Error messages are descriptive, error codes are machine-readable
+3. **Observability Built-In** — Timestamps, error codes, and structured data enable monitoring
+4. **Developer-Friendly** — Predictable patterns reduce cognitive load and onboarding time
+5. **Scalable by Design** — New endpoints automatically inherit the same patterns
 
-Supports gradual addition of APIs, authentication, and database logic
+### Future-Proofing
 
-Prevents over-engineering in early stages while allowing smooth scaling.
+As the Ticket Cancellation system grows:
+- New resources (`/api/tickets`, `/api/refunds`, `/api/cancellations`) automatically follow the same pattern
+- Middleware can uniformly handle authentication, rate-limiting, and logging
+- Monitoring and alerting rules apply across all endpoints
+- Documentation remains consistent as new features are added
+
+This foundation ensures that whether there are 5 endpoints or 50, the API remains understandable, maintainable, and professional-grade.
+
+---
 

@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { sendSuccess, sendError } from '@/lib/responseHandler';
+import { ERROR_CODES } from '@/lib/errorCodes';
 
 // TODO: Import your database client here
 // import { db } from '@/lib/db';
@@ -13,15 +15,13 @@ export async function GET() {
     // const users = await db.user.findMany();
     const users: any[] = [];
     
-    return NextResponse.json({
-      success: true,
-      data: users,
-      count: users.length,
-    });
+    return sendSuccess(users, 'Users fetched successfully', 200);
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch users' },
-      { status: 500 }
+    return sendError(
+      'Failed to fetch users',
+      ERROR_CODES.DATABASE_FAILURE,
+      500,
+      error
     );
   }
 }
@@ -36,18 +36,20 @@ export async function POST(request: NextRequest) {
     
     // Validation
     if (!body.name || !body.email) {
-      return NextResponse.json(
-        { success: false, error: 'Name and email are required' },
-        { status: 400 }
+      return sendError(
+        'Name and email are required',
+        ERROR_CODES.MISSING_FIELD,
+        400
       );
     }
 
     // TODO: Check if email already exists in database
     // const existingUser = await db.user.findUnique({ where: { email: body.email } });
     // if (existingUser) {
-    //   return NextResponse.json(
-    //     { success: false, error: 'Email already exists' },
-    //     { status: 409 }
+    //   return sendError(
+    //     'Email already exists',
+    //     ERROR_CODES.DUPLICATE_RESOURCE,
+    //     409
     //   );
     // }
 
@@ -60,18 +62,13 @@ export async function POST(request: NextRequest) {
     // });
     const newUser = { id: 0, name: body.name, email: body.email };
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: newUser,
-        message: 'User created successfully',
-      },
-      { status: 201 }
-    );
+    return sendSuccess(newUser, 'User created successfully', 201);
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Failed to create user' },
-      { status: 500 }
+    return sendError(
+      'Failed to create user',
+      ERROR_CODES.INTERNAL_ERROR,
+      500,
+      error
     );
   }
 }
