@@ -15,15 +15,16 @@ export async function GET() {
   try {
     // TODO: Replace with database query
     // const users = await db.user.findMany();
-    const users: any[] = [];
-    
-    return sendSuccess(users, 'Users fetched successfully', 200);
-  } catch (error) {
+    const users: { id: number; name: string; email: string }[] = [];
+
+    return sendSuccess(users, "Users fetched successfully", 200);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
-      'Failed to fetch users',
+      "Failed to fetch users",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -80,10 +81,10 @@ export async function POST(request: NextRequest) {
     }
 
     return sendError(
-      'Failed to create user',
+      "Failed to create user",
       ERROR_CODES.INTERNAL_ERROR,
       500,
-      error
+      errorMessage
     );
   }
 }

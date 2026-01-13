@@ -36,6 +36,7 @@ This repository currently contains a **basic Next.js setup**, which will be expa
 ├── tsconfig.json         # TypeScript configuration
 └── README.md             # Project documentation
 ```
+
 ---
 
 ## Folder Explanation
@@ -60,14 +61,19 @@ This repository currently contains a **basic Next.js setup**, which will be expa
 ## Setup Instructions
 
 ### 1. Install dependencies
+
 ```bash
 npm install
 ```
+
 ### 2. Run the development server
+
 ```bash
 npm run dev
 ```
+
 ### 3. Open the app in browser
+
 ```bash
 http://localhost:3000
 ```
@@ -98,6 +104,7 @@ All responses include the following envelope:
 ```
 
 **Field Descriptions:**
+
 - **`success`** — Boolean indicating whether the request succeeded (`true`) or failed (`false`)
 - **`message`** — Human-readable message describing the result
 - **`data`** — Response payload (only present on successful requests)
@@ -141,16 +148,16 @@ All responses include the following envelope:
 
 The API uses standardized error codes for programmatic error handling:
 
-| Error Code | HTTP Status | Description |
-|------------|------------|-------------|
-| `VALIDATION_ERROR` | 400 | General validation failure |
-| `MISSING_FIELD` | 400 | Required field is missing |
-| `INVALID_FORMAT` | 400 | Field format is invalid |
-| `NOT_FOUND` | 404 | Resource does not exist |
-| `DUPLICATE_RESOURCE` | 409 | Resource already exists |
-| `RESOURCE_CONFLICT` | 409 | Resource conflict during operation |
-| `DATABASE_FAILURE` | 500 | Database operation failed |
-| `INTERNAL_ERROR` | 500 | Internal server error |
+| Error Code           | HTTP Status | Description                        |
+| -------------------- | ----------- | ---------------------------------- |
+| `VALIDATION_ERROR`   | 400         | General validation failure         |
+| `MISSING_FIELD`      | 400         | Required field is missing          |
+| `INVALID_FORMAT`     | 400         | Field format is invalid            |
+| `NOT_FOUND`          | 404         | Resource does not exist            |
+| `DUPLICATE_RESOURCE` | 409         | Resource already exists            |
+| `RESOURCE_CONFLICT`  | 409         | Resource conflict during operation |
+| `DATABASE_FAILURE`   | 500         | Database operation failed          |
+| `INTERNAL_ERROR`     | 500         | Internal server error              |
 
 ---
 
@@ -163,8 +170,8 @@ The application uses a centralized response handler utility (`lib/responseHandle
 **Using the response handler:**
 
 ```typescript
-import { sendSuccess, sendError } from '@/lib/responseHandler';
-import { ERROR_CODES } from '@/lib/errorCodes';
+import { sendSuccess, sendError } from "@/lib/responseHandler";
+import { ERROR_CODES } from "@/lib/errorCodes";
 
 // Success response
 export async function GET() {
@@ -217,14 +224,14 @@ The application provides a RESTful API under `/api/` for managing resources:
 
 ### HTTP Verbs and Resource Actions
 
-| HTTP Verb | Endpoint | Purpose | Description |
-|-----------|----------|---------|-------------|
-| **GET** | `/api/users` | Read all users | Retrieve a list of all users in the system |
-| **POST** | `/api/users` | Create user | Add a new user to the system |
-| **GET** | `/api/users/:id` | Read specific user | Retrieve details of a single user by ID |
-| **PUT** | `/api/users/:id` | Full update | Replace all user data (requires all fields) |
-| **PATCH** | `/api/users/:id` | Partial update | Update specific user fields only |
-| **DELETE** | `/api/users/:id` | Remove user | Delete a user from the system |
+| HTTP Verb  | Endpoint         | Purpose            | Description                                 |
+| ---------- | ---------------- | ------------------ | ------------------------------------------- |
+| **GET**    | `/api/users`     | Read all users     | Retrieve a list of all users in the system  |
+| **POST**   | `/api/users`     | Create user        | Add a new user to the system                |
+| **GET**    | `/api/users/:id` | Read specific user | Retrieve details of a single user by ID     |
+| **PUT**    | `/api/users/:id` | Full update        | Replace all user data (requires all fields) |
+| **PATCH**  | `/api/users/:id` | Partial update     | Update specific user fields only            |
+| **DELETE** | `/api/users/:id` | Remove user        | Delete a user from the system               |
 
 ---
 
@@ -233,11 +240,13 @@ The application provides a RESTful API under `/api/` for managing resources:
 #### 1. **GET** `/api/users` — Get All Users
 
 **Request:**
+
 ```bash
 curl -X GET http://localhost:3000/api/users
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -263,6 +272,7 @@ curl -X GET http://localhost:3000/api/users
 #### 2. **POST** `/api/users` — Create New User
 
 **Request:**
+
 ```bash
 curl -X POST http://localhost:3000/api/users \
   -H "Content-Type: application/json" \
@@ -273,6 +283,7 @@ curl -X POST http://localhost:3000/api/users \
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -287,6 +298,7 @@ curl -X POST http://localhost:3000/api/users \
 ```
 
 **Error Response (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -300,6 +312,7 @@ curl -X POST http://localhost:3000/api/users \
 ```
 
 **Error Response (409 Conflict):**
+
 ```json
 {
   "success": false,
@@ -317,11 +330,13 @@ curl -X POST http://localhost:3000/api/users \
 #### 3. **GET** `/api/users/:id` — Get User by ID
 
 **Request:**
+
 ```bash
 curl -X GET http://localhost:3000/api/users/1
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -336,6 +351,7 @@ curl -X GET http://localhost:3000/api/users/1
 ```
 
 **Error Response (404 Not Found):**
+
 ```json
 {
   "success": false,
@@ -353,6 +369,7 @@ curl -X GET http://localhost:3000/api/users/1
 #### 4. **PUT** `/api/users/:id` — Full Update
 
 **Request:**
+
 ```bash
 curl -X PUT http://localhost:3000/api/users/1 \
   -H "Content-Type: application/json" \
@@ -363,6 +380,7 @@ curl -X PUT http://localhost:3000/api/users/1 \
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -381,6 +399,7 @@ curl -X PUT http://localhost:3000/api/users/1 \
 #### 5. **PATCH** `/api/users/:id` — Partial Update
 
 **Request (updating only name):**
+
 ```bash
 curl -X PATCH http://localhost:3000/api/users/1 \
   -H "Content-Type: application/json" \
@@ -390,6 +409,7 @@ curl -X PATCH http://localhost:3000/api/users/1 \
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -408,11 +428,13 @@ curl -X PATCH http://localhost:3000/api/users/1 \
 #### 6. **DELETE** `/api/users/:id` — Delete User
 
 **Request:**
+
 ```bash
 curl -X DELETE http://localhost:3000/api/users/1
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -431,23 +453,23 @@ curl -X DELETE http://localhost:3000/api/users/1
 ### Pagination, Filtering, and Error Semantics
 
 #### **Pagination** (Future Enhancement)
+
 When implementing pagination for large datasets:
 
 ```bash
 GET /api/users?page=1&limit=10
 ```
 
-
 #### **Error Response Format**
 
 All errors follow a consistent structure:
 
-| Status Code | Error Code | Meaning |
-|-------------|-----------|---------|
-| **400** | `VALIDATION_ERROR`, `MISSING_FIELD`, `INVALID_FORMAT` | Bad Request - Invalid input or missing data |
-| **404** | `NOT_FOUND` | Resource does not exist |
-| **409** | `DUPLICATE_RESOURCE`, `RESOURCE_CONFLICT` | Conflict - Resource already exists or state conflict |
-| **500** | `DATABASE_FAILURE`, `INTERNAL_ERROR` | Internal Server Error - Server-side failure |
+| Status Code | Error Code                                            | Meaning                                              |
+| ----------- | ----------------------------------------------------- | ---------------------------------------------------- |
+| **400**     | `VALIDATION_ERROR`, `MISSING_FIELD`, `INVALID_FORMAT` | Bad Request - Invalid input or missing data          |
+| **404**     | `NOT_FOUND`                                           | Resource does not exist                              |
+| **409**     | `DUPLICATE_RESOURCE`, `RESOURCE_CONFLICT`             | Conflict - Resource already exists or state conflict |
+| **500**     | `DATABASE_FAILURE`, `INTERNAL_ERROR`                  | Internal Server Error - Server-side failure          |
 
 ---
 
@@ -1117,18 +1139,21 @@ const newUser = await prisma.user.create({
 The global response handler serves as the API's "unified voice" — ensuring every endpoint speaks in the same tone, regardless of who wrote it.
 
 #### 1. **Debugging & Error Tracking**
+
 - Every error includes a machine-readable code (e.g., `VALIDATION_ERROR`, `NOT_FOUND`)
 - Timestamps on all responses make it easy to correlate with server logs
 - Error details are standardized, enabling automated error tracking tools (Sentry, DataDog, etc.)
 
 #### 2. **Frontend Developer Experience**
+
 - Single response schema across all endpoints eliminates conditional logic
 - Predictable error handling: frontends can use the same error handler for all responses
 - Clear `success` boolean allows easy branching: `if (response.success) { ... } else { ... }`
 
 Example frontend code:
+
 ```typescript
-const response = await fetch('/api/users');
+const response = await fetch("/api/users");
 const result = await response.json();
 
 if (result.success) {
@@ -1140,16 +1165,19 @@ if (result.success) {
 ```
 
 #### 3. **Team Communication**
+
 - New team members instantly understand the API response format
 - No ambiguity about how errors are reported
 - Documentation becomes straightforward: "Every endpoint follows this schema"
 
 #### 4. **Production Monitoring**
+
 - Consistent timestamps enable correlation with monitoring dashboards
 - Error codes allow alerting based on specific failure types
 - Log aggregation tools can easily parse and categorize issues
 
 Example Sentry integration:
+
 ```typescript
 if (!result.success) {
   Sentry.captureException(new Error(result.message), {
@@ -1163,11 +1191,13 @@ if (!result.success) {
 ```
 
 #### 5. **Testing & CI/CD**
+
 - Response schema is predictable and testable
 - Automated tests can validate the envelope structure
 - Mock responses are consistent, reducing test brittleness
 
 #### 6. **Third-Party Integrations**
+
 - Payment gateways, analytics, and external services expect consistent APIs
 - Clear error codes enable integration logic (retry on `DATABASE_FAILURE`, skip on `VALIDATION_ERROR`)
 - Documentation for partners is simpler and more professional
@@ -1189,6 +1219,7 @@ The Ticket Cancellation system's API is built on these core principles:
 ### Future-Proofing
 
 As the Ticket Cancellation system grows:
+
 - New resources (`/api/tickets`, `/api/refunds`, `/api/cancellations`) automatically follow the same pattern
 - Middleware can uniformly handle authentication, rate-limiting, and logging
 - Monitoring and alerting rules apply across all endpoints
@@ -1197,4 +1228,3 @@ As the Ticket Cancellation system grows:
 This foundation ensures that whether there are 5 endpoints or 50, the API remains understandable, maintainable, and professional-grade.
 
 ---
-

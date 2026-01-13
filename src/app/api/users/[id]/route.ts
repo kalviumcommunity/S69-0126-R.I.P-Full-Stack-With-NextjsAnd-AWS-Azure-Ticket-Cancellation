@@ -21,7 +21,7 @@ export async function GET(
 
     if (isNaN(userId)) {
       return sendError(
-        'Invalid user ID format',
+        "Invalid user ID format",
         ERROR_CODES.INVALID_FORMAT,
         400
       );
@@ -32,20 +32,17 @@ export async function GET(
     const user = null;
 
     if (!user) {
-      return sendError(
-        'User not found',
-        ERROR_CODES.NOT_FOUND,
-        404
-      );
+      return sendError("User not found", ERROR_CODES.NOT_FOUND, 404);
     }
 
-    return sendSuccess(user, 'User fetched successfully', 200);
-  } catch (error) {
+    return sendSuccess(user, "User fetched successfully", 200);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
-      'Failed to fetch user',
+      "Failed to fetch user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -65,7 +62,7 @@ export async function PUT(
 
     if (isNaN(userId)) {
       return sendError(
-        'Invalid user ID format',
+        "Invalid user ID format",
         ERROR_CODES.INVALID_FORMAT,
         400
       );
@@ -124,10 +121,10 @@ export async function PUT(
     }
 
     return sendError(
-      'Failed to update user',
+      "Failed to update user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -147,7 +144,7 @@ export async function PATCH(
 
     if (isNaN(userId)) {
       return sendError(
-        'Invalid user ID format',
+        "Invalid user ID format",
         ERROR_CODES.INVALID_FORMAT,
         400
       );
@@ -212,10 +209,10 @@ export async function PATCH(
     }
 
     return sendError(
-      'Failed to update user',
+      "Failed to update user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -234,33 +231,24 @@ export async function DELETE(
 
     if (isNaN(userId)) {
       return sendError(
-        'Invalid user ID format',
+        "Invalid user ID format",
         ERROR_CODES.INVALID_FORMAT,
         400
       );
     }
 
-    // TODO: Check if user exists and delete from database
-    // const user = await db.user.findUnique({ where: { id: userId } });
-    // if (!user) {
-    //   return sendError(
-    //     'User not found',
-    //     ERROR_CODES.NOT_FOUND,
-    //     404
-    //   );
-    // }
-
     // TODO: Delete user from database
     // const deletedUser = await db.user.delete({ where: { id: userId } });
-    const deletedUser = { id: userId, name: '', email: '' };
+    const deletedUser = { id: userId, name: "", email: "" };
 
-    return sendSuccess(deletedUser, 'User deleted successfully', 200);
-  } catch (error) {
+    return sendSuccess(deletedUser, "User deleted successfully", 200);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return sendError(
-      'Failed to delete user',
+      "Failed to delete user",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
