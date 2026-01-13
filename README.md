@@ -451,7 +451,664 @@ All errors follow a consistent structure:
 
 ---
 
+## Input Validation with Zod
 
+### Why Input Validation Matters
+
+Every API needs to trust but verify the data it receives. Without validation:
+
+- Users might send malformed JSON or missing fields
+- The database could receive invalid or unexpected values
+- The application becomes unpredictable or insecure
+
+**Example Problem:**
+
+```json
+{
+  "name": "",
+  "email": "not-an-email",
+  "age": -5
+}
+```
+
+If your `/api/users` endpoint accepts this data unchecked, you risk broken records and confusing errors later. That's where **Zod** comes in — it validates inputs before they reach your logic.
+
+---
+
+### What is Zod?
+
+Zod is a TypeScript-first schema validation library that enables:
+- **Runtime validation** — Ensures data matches expected shape at runtime
+- **Type inference** — Automatically generates TypeScript types from schemas
+- **Descriptive errors** — Provides clear, actionable error messages
+- **Composable schemas** — Build complex validations from simple primitives
+
+### Installation
+
+```bash
+npm install zod
+```
+
+---
+
+### Schema Definitions
+
+We define validation schemas in a centralized location for reuse across client and server.
+
+**Location:** [src/lib/schemas/userSchema.ts](src/lib/schemas/userSchema.ts)
+
+```typescript
+import { z } from "zod";
+
+/**
+ * User Schema for POST and PUT requests
+ * Validates complete user data with all required fields
+ */
+export const userSchema = z.object({
+  name: z.string()
+    .min(2, "Name must be at least 2 characters long")
+    .max(100, "Name must not exceed 100 characters"),
+  email: z.string()
+    .email("Invalid email address")
+    .toLowerCase(),
+  age: z.number()
+    .int("Age must be a whole number")
+    .min(18, "User must be at least 18 years old")
+    .max(120, "Age must be realistic")
+    .optional(),
+});
+
+/**
+ * User Schema for PATCH requests
+ * Allows partial updates - all fields are optional
+ */
+export const userUpdateSchema = userSchema.partial();
+
+/**
+ * TypeScript types inferred from schemas
+ */
+export type UserInput = z.infer<typeof userSchema>;
+export type UserUpdateInput = z.infer<typeof userUpdateSchema>;
+```
+
+**Key Features:**
+- **Validation rules** — `min()`, `max()`, `email()`, `int()` ensure data quality
+- **Custom error messages** — Clear feedback for users
+- **Partial schemas** — `userUpdateSchema` makes all fields optional for PATCH requests
+- **Type inference** — `z.infer<>` generates TypeScript types automatically
+
+---
+
+### Implementation in API Routes
+
+#### POST `/api/users` — Create User with Validation
+
+```typescript
+import { NextRequest } from 'next/server';
+import { sendSuccess, sendError } from '@/lib/responseHandler';
+import { ERROR_CODES } from '@/lib/errorCodes';
+import { userSchema } from '@/lib/schemas/userSchema';
+import { ZodError } from 'zod';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    
+    // Validate request body with Zod
+    const validatedData = userSchema.parse(body);
+
+    // TODO: Database operations with validatedData
+    const newUser = { 
+      id: 0, 
+      name: validatedData.name, 
+      email: validatedData.email,
+      age: validatedData.age
+    };
+
+    return sendSuccess(newUser, 'User created successfully', 201);
+  } catch (error) {
+    // Handle Zod validation errors
+    if (error instanceof ZodError) {
+      return sendError(
+        'Validation failed',
+        ERROR_CODES.VALIDATION_ERROR,
+        400,
+        error.issues.map((e) => ({ 
+          field: e.path.join('.'), 
+          message: e.message 
+        }))
+      );
+    }
+
+    return sendError(
+      'Failed to create user',
+      ERROR_CODES.INTERNAL_ERROR,
+      500,
+      error
+    );
+  }
+}
+```
+
+#### PUT `/api/users/:id` — Full Update with Validation
+
+```typescript
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const userId = parseInt(params.id);
+    const body = await request.json();
+
+    if (isNaN(userId)) {
+      return sendError(
+        'Invalid user ID format',
+        ERROR_CODES.INVALID_FORMAT,
+        400
+      );
+    }
+
+    // Validate complete user data
+    const validatedData = userSchema.parse(body);
+
+    // TODO: Update user in database
+    const updatedUser = { 
+      id: userId, 
+      name: validatedData.name, 
+      email: validatedData.email,
+      age: validatedData.age
+    };
+
+    return sendSuccess(updatedUser, 'User updated successfully', 200);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return sendError(
+        'Validation failed',
+        ERROR_CODES.VALIDATION_ERROR,
+        400,
+        error.errors.map((e) => ({ 
+          field: e.path.join('.'), 
+          message: e.message 
+        }))
+      );
+    }
+
+    return sendError(
+      'Failed to update user',
+      ERROR_CODES.DATABASE_FAILURE,
+      500,
+      error
+    );
+  }
+}
+```
+
+#### PATCH `/api/users/:id` — Partial Update with Validation
+
+```typescript
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const userId = parseInt(params.id);
+    const body = await request.json();
+
+    if (isNaN(userId)) {
+      return sendError(
+        'Invalid user ID format',
+        ERROR_CODES.INVALID_FORMAT,
+        400
+      );
+    }
+
+    // Validate with partial schema (all fields optional)
+    const validatedData = userUpdateSchema.parse(body);
+
+    // Check if at least one field is provided
+    if (Object.keys(validatedData).length === 0) {
+      return sendError(
+        'At least one field must be provided for update',
+        ERROR_CODES.MISSING_FIELD,
+        400
+      );
+    }
+
+    // TODO: Partial update in database
+    const updatedUser = { id: userId, ...validatedData };
+
+    return sendSuccess(updatedUser, 'User updated successfully', 200);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return sendError(
+        'Validation failed',
+        ERROR_CODES.VALIDATION_ERROR,
+        400,
+        error.errors.map((e) => ({ 
+          field: e.path.join('.'), 
+          message: e.message 
+        }))
+      );
+    }
+
+    return sendError(
+      'Failed to update user',
+      ERROR_CODES.DATABASE_FAILURE,
+      500,
+      error
+    );
+  }
+}
+```
+
+---
+
+### Validation Examples
+
+#### ✅ Valid Request
+
+```bash
+curl -X POST http://localhost:3000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Alice Johnson",
+    "email": "alice@example.com",
+    "age": 25
+  }'
+```
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "User created successfully",
+  "data": {
+    "id": 0,
+    "name": "Alice Johnson",
+    "email": "alice@example.com",
+    "age": 25
+  },
+  "timestamp": "2026-01-13T10:00:00.000Z"
+}
+```
+
+---
+
+#### ❌ Invalid Request — Multiple Validation Errors
+
+```bash
+curl -X POST http://localhost:3000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "A",
+    "email": "not-an-email",
+    "age": 15
+  }'
+```
+
+**Response (400 Bad Request):**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "details": [
+      {
+        "field": "name",
+        "message": "Name must be at least 2 characters long"
+      },
+      {
+        "field": "email",
+        "message": "Invalid email address"
+      },
+      {
+        "field": "age",
+        "message": "User must be at least 18 years old"
+      }
+    ]
+  },
+  "timestamp": "2026-01-13T10:00:00.000Z"
+}
+```
+
+---
+
+#### ❌ Invalid Request — Missing Required Fields
+
+```bash
+curl -X POST http://localhost:3000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "age": 25
+  }'
+```
+
+**Response (400 Bad Request):**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "details": [
+      {
+        "field": "name",
+        "message": "Required"
+      },
+      {
+        "field": "email",
+        "message": "Required"
+      }
+    ]
+  },
+  "timestamp": "2026-01-13T10:00:00.000Z"
+}
+```
+
+---
+
+#### ✅ Valid PATCH Request — Partial Update
+
+```bash
+curl -X PATCH http://localhost:3000/api/users/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "newemail@example.com"
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "User updated successfully",
+  "data": {
+    "id": 1,
+    "email": "newemail@example.com"
+  },
+  "timestamp": "2026-01-13T10:00:00.000Z"
+}
+```
+
+---
+
+#### ❌ Invalid PATCH Request — Invalid Email Format
+
+```bash
+curl -X PATCH http://localhost:3000/api/users/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "invalid-email"
+  }'
+```
+
+**Response (400 Bad Request):**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "details": [
+      {
+        "field": "email",
+        "message": "Invalid email address"
+      }
+    ]
+  },
+  "timestamp": "2026-01-13T10:00:00.000Z"
+}
+```
+
+---
+
+### Schema Reuse Between Client and Server
+
+A major benefit of using Zod in a full-stack TypeScript app is **schema reuse**. You can use the same schema on both sides:
+
+- **Client:** Validate form inputs before submitting
+- **Server:** Validate data again before writing to the database
+
+**Example: Frontend Form Validation**
+
+```typescript
+'use client';
+import { useState } from 'react';
+import { userSchema, UserInput } from '@/lib/schemas/userSchema';
+import { ZodError } from 'zod';
+
+export default function UserForm() {
+  const [formData, setFormData] = useState<Partial<UserInput>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      // Validate on client-side before sending
+      const validatedData = userSchema.parse(formData);
+      
+      // Send to API
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validatedData),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('User created:', result.data);
+      } else {
+        console.error('Server error:', result.error);
+      }
+    } catch (error) {
+      if (error instanceof ZodError) {
+        // Display validation errors in form
+        const fieldErrors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          fieldErrors[err.path[0] as string] = err.message;
+        });
+        setErrors(fieldErrors);
+      }
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input 
+        type="text" 
+        placeholder="Name"
+        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+      />
+      {errors.name && <span className="error">{errors.name}</span>}
+      
+      <input 
+        type="email" 
+        placeholder="Email"
+        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+      />
+      {errors.email && <span className="error">{errors.email}</span>}
+      
+      <button type="submit">Create User</button>
+    </form>
+  );
+}
+```
+
+**Benefits of Schema Reuse:**
+- **Single source of truth** — One schema definition for both frontend and backend
+- **Type safety** — TypeScript types are inferred from the schema
+- **Consistent validation** — Same rules apply on both sides
+- **Reduced duplication** — No need to maintain separate validation logic
+- **Better UX** — Catch errors before submission, reducing server round-trips
+
+---
+
+### Testing Validation
+
+You can test validation using various tools:
+
+#### Using cURL
+
+**Valid request:**
+```bash
+curl -X POST http://localhost:3000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice","email":"alice@example.com","age":22}'
+```
+
+**Invalid request:**
+```bash
+curl -X POST http://localhost:3000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"A","email":"bademail","age":15}'
+```
+
+#### Using Postman
+
+1. Create a new POST request to `http://localhost:3000/api/users`
+2. Set header: `Content-Type: application/json`
+3. Test various payloads:
+   - Valid: `{"name":"Alice","email":"alice@example.com","age":25}`
+   - Invalid name: `{"name":"A","email":"alice@example.com"}`
+   - Invalid email: `{"name":"Alice","email":"not-email"}`
+   - Missing fields: `{"age":25}`
+
+#### Using JavaScript/TypeScript Tests
+
+```typescript
+import { userSchema } from '@/lib/schemas/userSchema';
+
+describe('User Schema Validation', () => {
+  it('should validate correct user data', () => {
+    const validData = {
+      name: 'Alice Johnson',
+      email: 'alice@example.com',
+      age: 25,
+    };
+    
+    expect(() => userSchema.parse(validData)).not.toThrow();
+  });
+
+  it('should reject invalid email', () => {
+    const invalidData = {
+      name: 'Alice',
+      email: 'not-an-email',
+    };
+    
+    expect(() => userSchema.parse(invalidData)).toThrow();
+  });
+
+  it('should reject underage users', () => {
+    const invalidData = {
+      name: 'Bob',
+      email: 'bob@example.com',
+      age: 15,
+    };
+    
+    expect(() => userSchema.parse(invalidData)).toThrow('User must be at least 18 years old');
+  });
+});
+```
+
+---
+
+### Validation Benefits & Reflection
+
+#### Why Validation Consistency Matters in Team Projects
+
+1. **Trust & Reliability**
+   - Team members can trust that data reaching business logic is valid
+   - No defensive checks needed throughout the codebase
+   - Database integrity is maintained automatically
+
+2. **Developer Experience**
+   - New developers learn one validation pattern that applies everywhere
+   - Clear error messages make debugging faster
+   - TypeScript integration catches errors at compile time
+
+3. **User Experience**
+   - Descriptive error messages help users fix their input
+   - Frontend validation prevents unnecessary server requests
+   - Consistent error format makes UI error handling simpler
+
+4. **Maintainability**
+   - Validation rules are centralized and easy to update
+   - Adding new fields requires one schema update
+   - Refactoring is safer with type-checked schemas
+
+5. **Security**
+   - Prevents injection attacks by validating all inputs
+   - Enforces data type constraints (numbers, emails, etc.)
+   - Stops malformed data before it reaches the database
+
+6. **Testing**
+   - Validation logic is isolated and easy to unit test
+   - Mocking is simpler with well-defined schemas
+   - Integration tests can validate error responses consistently
+
+#### Schema Evolution Strategy
+
+As the project grows, schemas can evolve:
+- **Adding fields** — Use `.optional()` for backwards compatibility
+- **Changing validation** — Update the schema, TypeScript will catch all usages
+- **Versioning** — Create new schema versions when breaking changes are needed
+- **Extending** — Use `.extend()` to build on existing schemas
+
+Example:
+```typescript
+// Base user schema
+export const userSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+});
+
+// Extended schema for admin users
+export const adminUserSchema = userSchema.extend({
+  role: z.enum(['admin', 'superadmin']),
+  permissions: z.array(z.string()),
+});
+```
+
+#### Integration with Database Layer
+
+When integrated with ORMs like Prisma:
+```typescript
+// Zod schema matches Prisma schema
+const validatedData = userSchema.parse(body);
+
+// Type-safe database operation
+const newUser = await prisma.user.create({
+  data: validatedData, // TypeScript ensures shape matches
+});
+```
+
+---
+
+### Summary of Zod Implementation
+
+**Implemented:**
+- ✅ Zod validation for all POST and PUT APIs
+- ✅ Shared schema files ([src/lib/schemas/userSchema.ts](src/lib/schemas/userSchema.ts))
+- ✅ Error-handling structure returning consistent validation messages
+- ✅ Partial schema for PATCH operations
+- ✅ TypeScript type inference from schemas
+- ✅ Integration with global response handler
+
+**Endpoints with Validation:**
+- ✅ `POST /api/users` — Full validation with userSchema
+- ✅ `PUT /api/users/:id` — Full validation with userSchema
+- ✅ `PATCH /api/users/:id` — Partial validation with userUpdateSchema
+
+**Key Files:**
+- [src/lib/schemas/userSchema.ts](src/lib/schemas/userSchema.ts) — Schema definitions
+- [src/app/api/users/route.ts](src/app/api/users/route.ts) — POST validation
+- [src/app/api/users/[id]/route.ts](src/app/api/users/[id]/route.ts) — PUT/PATCH validation
+
+---
 
 ## Developer Experience & Observability Benefits
 
