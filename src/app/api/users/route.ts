@@ -32,10 +32,10 @@ export async function GET(request: NextRequest) {
     return sendSuccess(users, 'Users fetched successfully', 200);
   } catch (error) {
     return sendError(
-      'Failed to fetch users',
+      "Failed to fetch users",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      error
+      errorMessage
     );
   }
 }
@@ -92,10 +92,10 @@ export async function POST(request: NextRequest) {
     }
 
     return sendError(
-      'Failed to create user',
+      "Failed to create user",
       ERROR_CODES.INTERNAL_ERROR,
       500,
-      error
+      errorMessage
     );
   }
 }
