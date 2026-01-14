@@ -3,6 +3,8 @@ import { sendSuccess, sendError } from '@/lib/responseHandler';
 import { ERROR_CODES } from '@/lib/errorCodes';
 import { userSchema } from '@/lib/schemas/userSchema';
 import { ZodError } from 'zod';
+import { getPublicUsers } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 
 // TODO: Import your database client here
 // import { db } from '@/lib/db';
@@ -11,15 +13,24 @@ import { ZodError } from 'zod';
  * GET /api/users
  * Get all users
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // TODO: Replace with database query
-    // const users = await db.user.findMany();
-    const users: { id: number; name: string; email: string }[] = [];
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
 
-    return sendSuccess(users, "Users fetched successfully", 200);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (!token) {
+      return sendError('Token missing', ERROR_CODES.UNAUTHORIZED, 401);
+    }
+
+    try {
+      verifyToken(token);
+    } catch {
+      return sendError('Invalid or expired token', ERROR_CODES.FORBIDDEN, 403);
+    }
+
+    const users = getPublicUsers();
+    return sendSuccess(users, 'Users fetched successfully', 200);
+  } catch (error) {
     return sendError(
       "Failed to fetch users",
       ERROR_CODES.DATABASE_FAILURE,
