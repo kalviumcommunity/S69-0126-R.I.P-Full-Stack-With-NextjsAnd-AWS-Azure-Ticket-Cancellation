@@ -1,5 +1,4 @@
 # Ticket Cancellation – Transparent Bus Ticket Cancellation & Refund Tracking System
-
 ## Project Overview
 
 Intercity bus ticket cancellations and refunds are often opaque and inconsistent. Passengers face unclear cancellation rules, unpredictable refund timelines, and limited visibility into refund status. This lack of transparency reduces trust and creates accountability gaps between passengers, operators, and platforms.
@@ -24,7 +23,6 @@ This repository currently contains a **basic Next.js setup**, which will be expa
 # Project Structure
 
 ```text
-├── app/
 │   ├── page.tsx          # Default home page
 │   ├── layout.tsx        # Root layout for the app
 │   └── globals.css       # Global styles
@@ -60,7 +58,6 @@ This repository currently contains a **basic Next.js setup**, which will be expa
 ## Setup Instructions
 
 ### 1. Install dependencies
-```bash
 npm install
 ```
 ### 2. Run the development server
@@ -1197,4 +1194,128 @@ As the Ticket Cancellation system grows:
 This foundation ensures that whether there are 5 endpoints or 50, the API remains understandable, maintainable, and professional-grade.
 
 ---
+
+## Authentication & Authorization Overview
+
+### Concepts
+
+- **Authentication**: Verifies identity (e.g., login with email/password).
+- **Authorization**: Determines permissions (e.g., admins can access `/api/admin`).
+
+This project implements authentication using hashed passwords and JWTs; authorization can build on JWT claims.
+
+---
+
+## Setup — Required Packages
+
+Install dependencies:
+
+```bash
+npm install bcrypt jsonwebtoken
+npm install -D @types/bcrypt @types/jsonwebtoken
+```
+
+Add a local environment file:
+
+```
+.env.local
+JWT_SECRET=supersecretkey
+```
+
+---
+
+## Auth API Structure
+
+```
+app/
+└── api/
+    ├── auth/
+    │   ├── signup/route.ts
+    │   └── login/route.ts
+    └── users/route.ts
+```
+
+Key files:
+- [src/app/api/auth/signup/route.ts](src/app/api/auth/signup/route.ts)
+- [src/app/api/auth/login/route.ts](src/app/api/auth/login/route.ts)
+- [src/app/api/users/route.ts](src/app/api/users/route.ts) (protected GET)
+- [src/lib/schemas/authSchema.ts](src/lib/schemas/authSchema.ts) (Zod schemas)
+- [src/lib/auth.ts](src/lib/auth.ts) (JWT helpers)
+- [src/lib/db.ts](src/lib/db.ts) (demo in-memory user store)
+
+---
+
+## Signup — Secure Password Hashing
+
+Passwords are hashed with `bcrypt` before storage. Even if data leaks, hashes are computationally expensive to reverse.
+
+Flow:
+1. Validate input (`name`, `email`, `password`).
+2. Check if user exists.
+3. Hash password with 10 salt rounds.
+4. Create user and return public data (no password).
+
+---
+
+## Login — JWT Issuance
+
+On login, the password is verified against the stored hash. If valid, a JWT containing user identity is returned.
+
+Token details:
+- Signed with `JWT_SECRET`.
+- Default expiry: 1 hour.
+- Payload: `id`, `email`.
+
+---
+
+## Protecting Routes — Token Validation
+
+Private endpoints validate the `Authorization: Bearer <token>` header. Invalid or expired tokens return 401/403.
+
+The [users GET route](src/app/api/users/route.ts) demonstrates protection and returns public users only.
+
+---
+
+## Try It — curl Examples
+
+Signup:
+```bash
+curl -X POST http://localhost:3000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice","email":"alice@example.com","password":"mypassword"}'
+```
+
+Login:
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","password":"mypassword"}'
+```
+
+Access Protected Route:
+```bash
+curl -X GET http://localhost:3000/api/users \
+  -H "Authorization: Bearer <YOUR_JWT_TOKEN>"
+```
+
+---
+
+## Token Storage, Expiry, and Refresh
+
+- **Expiry**: Tokens expire in 1 hour to limit risk. Adjust `signToken(..., "1h")` in [src/lib/auth.ts](src/lib/auth.ts).
+- **Storage**:
+  - Cookies (HttpOnly, Secure) — recommended for web apps to mitigate XSS.
+  - `localStorage` — simpler but vulnerable to XSS; use cautiously.
+- **Refresh Strategy**:
+  - Short-lived access tokens + long-lived refresh tokens.
+  - Endpoint to exchange refresh token for new access token.
+  - Revoke refresh tokens on logout or compromise.
+
+---
+
+## Notes
+
+- The demo uses an in-memory store for simplicity. For production, replace [src/lib/db.ts](src/lib/db.ts) with a persistent database (e.g., Prisma + Postgres) and ensure secure secret management.
+- Always validate inputs with Zod and return unified responses via [src/lib/responseHandler.ts](src/lib/responseHandler.ts).
+
 
