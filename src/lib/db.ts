@@ -3,6 +3,7 @@ export type User = {
   name: string;
   email: string;
   passwordHash: string;
+  role: "admin" | "user";
   age?: number;
   createdAt: string;
 };
@@ -18,6 +19,7 @@ export const createUser = (params: {
   name: string;
   email: string;
   passwordHash: string;
+  role?: "admin" | "user";
   age?: number;
 }): User => {
   const user: User = {
@@ -25,6 +27,7 @@ export const createUser = (params: {
     name: params.name,
     email: params.email,
     passwordHash: params.passwordHash,
+    role: params.role || "user",
     age: params.age,
     createdAt: new Date().toISOString(),
   };

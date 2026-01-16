@@ -9,6 +9,10 @@ export const signupSchema = z.object({
   password: z
     .string()
     .min(8, "Password must be at least 8 characters long"),
+  role: z
+    .enum(["admin", "user"])
+    .optional()
+    .default("user"),
   age: z
     .number()
     .int("Age must be a whole number")

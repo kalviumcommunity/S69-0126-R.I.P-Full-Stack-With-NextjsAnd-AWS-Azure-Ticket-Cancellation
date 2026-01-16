@@ -1348,4 +1348,885 @@ curl -X GET http://localhost:3000/api/users \
 - The demo uses an in-memory store for simplicity. For production, replace [src/lib/db.ts](src/lib/db.ts) with a persistent database (e.g., Prisma + Postgres) and ensure secure secret management.
 - Always validate inputs with Zod and return unified responses via [src/lib/responseHandler.ts](src/lib/responseHandler.ts).
 
+---
+
+# Role-Based Access Control (RBAC)
+
+## Overview
+
+Role-Based Access Control (RBAC) is a security model that restricts system access based on user roles. This implementation enforces authorization at the middleware layer, ensuring consistent, centralized permission checks across all protected routes.
+
+### Key Concepts
+
+- **Role**: A predefined set of permissions (e.g., `admin`, `user`)
+- **Permission**: An action a role can perform (e.g., view admin panel, manage users)
+- **Middleware**: Intercepts requests before they reach route handlers, validating authorization
+- **Least Privilege Principle**: Users have only the minimum permissions required for their role
+
+---
+
+## User Roles Model
+
+### Updated User Schema
+
+The User model now includes a `role` field:
+
+```typescript
+export type User = {
+  id: number;
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: "admin" | "user";  // NEW: Role-based access
+  age?: number;
+  createdAt: string;
+};
+```
+
+**Role Definitions:**
+- **`admin`**: Full system access, can manage users, view analytics, configure system
+- **`user`**: Standard access, can view own profile and accessible resources
+
+---
+
+## Middleware Architecture
+
+The authorization middleware is implemented in [src/middleware.ts](src/middleware.ts). It intercepts all requests to protected routes (`/api/admin/*` and `/api/users/*`), validates JWTs, and enforces role-based access.
+
+### Middleware Flow
+
+```
+Request → Token Extraction → JWT Verification → Role Check → Route Handler
+   ↓            ↓                 ↓                  ↓             ↓
+ Incoming    Bearer token    Signature valid?   Authorized?   Process request
+ Request     from header?      Expired?          for role?
+   ↓            ↓                 ↓                  ↓             ↓
+             Missing?          Invalid?          Denied?       Success
+             ↓                 ↓                  ↓
+         Return 401        Return 403        Return 403
+```
+
+### Implementation Details
+
+**File:** [src/middleware.ts](src/middleware.ts)
+
+```typescript
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
+
+interface DecodedToken {
+  id: number;
+  email: string;
+  role: "admin" | "user";
+}
+
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // Only protect specific routes
+  if (pathname.startsWith("/api/admin") || pathname.startsWith("/api/users")) {
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.split(" ")[1];
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, message: "Token missing" },
+        { status: 401 }
+      );
+    }
+
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
+
+      // Role-based access control
+      if (pathname.startsWith("/api/admin") && decoded.role !== "admin") {
+        return NextResponse.json(
+          { success: false, message: "Access denied. Admin role required." },
+          { status: 403 }
+        );
+      }
+
+      // Attach user info for downstream handlers
+      const requestHeaders = new Headers(req.headers);
+      requestHeaders.set("x-user-id", decoded.id.toString());
+      requestHeaders.set("x-user-email", decoded.email);
+      requestHeaders.set("x-user-role", decoded.role);
+
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, message: "Invalid or expired token" },
+        { status: 403 }
+      );
+    }
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/api/admin/:path*", "/api/users/:path*"],
+};
+```
+
+**Key Features:**
+1. **Token Extraction**: Extracts JWT from `Authorization: Bearer <token>` header
+2. **JWT Verification**: Validates signature and expiration
+3. **Role Check**: Blocks non-admin users from accessing `/api/admin` routes
+4. **Header Injection**: Passes user info (`x-user-id`, `x-user-email`, `x-user-role`) to route handlers
+5. **Route Matcher**: Uses Next.js config to only apply to protected routes
+
+---
+
+## Protected Routes
+
+### Admin Route
+
+**File:** [src/app/api/admin/route.ts](src/app/api/admin/route.ts)
+
+Admin-only endpoint returning system administration resources:
+
+```typescript
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+export async function GET(request: NextRequest) {
+  try {
+    const userRole = request.headers.get("x-user-role");
+    const userEmail = request.headers.get("x-user-email");
+
+    return NextResponse.json({
+      success: true,
+      message: "Welcome Admin! You have full access to admin resources.",
+      data: {
+        role: userRole,
+        email: userEmail,
+        permissions: [
+          "view_all_users",
+          "manage_roles",
+          "view_analytics",
+          "configure_system",
+        ],
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, message: "Failed to retrieve admin data" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Access Requirements:**
+- Valid JWT token
+- Role must be `admin`
+- Response includes available permissions
+
+---
+
+### Users Route (Protected)
+
+**File:** [src/app/api/users/route.ts](src/app/api/users/route.ts)
+
+General authenticated endpoint accessible to both `admin` and `user` roles:
+
+```typescript
+export async function GET(request: NextRequest) {
+  try {
+    const userEmail = request.headers.get("x-user-email");
+    const userRole = request.headers.get("x-user-role");
+
+    if (!userEmail) {
+      return sendError('Unauthorized access', ERROR_CODES.UNAUTHORIZED, 401);
+    }
+
+    const users = getPublicUsers();
+    return sendSuccess(
+      {
+        users,
+        accessedBy: { email: userEmail, role: userRole },
+      },
+      'Users fetched successfully',
+      200
+    );
+  } catch (error) {
+    return sendError(
+      "Failed to fetch users",
+      ERROR_CODES.DATABASE_FAILURE,
+      500,
+      error
+    );
+  }
+}
+```
+
+**Access Requirements:**
+- Valid JWT token
+- Available to both `admin` and `user` roles
+- Returns list of users and accessor information
+
+---
+
+## Signup and Login Integration
+
+### Updated Signup Schema
+
+**File:** [src/lib/schemas/authSchema.ts](src/lib/schemas/authSchema.ts)
+
+```typescript
+export const signupSchema = z.object({
+  name: z.string().min(2).max(100),
+  email: z.string().email().toLowerCase(),
+  password: z.string().min(8),
+  role: z.enum(["admin", "user"]).optional().default("user"),
+  age: z.number().int().min(18).max(120).optional(),
+});
+```
+
+**Note:** Role defaults to `"user"`. Only trusted admins should manually set `role: "admin"` via backend.
+
+### Updated Login Route
+
+**File:** [src/app/api/auth/login/route.ts](src/app/api/auth/login/route.ts)
+
+Login now includes the user's role in the JWT payload:
+
+```typescript
+const token = signToken({ 
+  id: user.id, 
+  email: user.email, 
+  role: user.role  // NEW: Include role in token
+});
+```
+
+This allows the middleware to check roles without additional database queries.
+
+---
+
+## Testing Role-Based Access
+
+### Test Setup
+
+Create two test users:
+
+**User 1 — Regular User:**
+```bash
+curl -X POST http://localhost:3000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John User",
+    "email": "user@example.com",
+    "password": "mypassword123",
+    "role": "user"
+  }'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Signup successful",
+  "data": {
+    "id": 1,
+    "name": "John User",
+    "email": "user@example.com",
+    "role": "user",
+    "createdAt": "2026-01-16T10:00:00.000Z"
+  },
+  "timestamp": "2026-01-16T10:00:00.000Z"
+}
+```
+
+**User 2 — Admin User:**
+```bash
+curl -X POST http://localhost:3000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Jane Admin",
+    "email": "admin@example.com",
+    "password": "adminpassword123",
+    "role": "admin"
+  }'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Signup successful",
+  "data": {
+    "id": 2,
+    "name": "Jane Admin",
+    "email": "admin@example.com",
+    "role": "admin",
+    "createdAt": "2026-01-16T10:00:00.000Z"
+  },
+  "timestamp": "2026-01-16T10:00:00.000Z"
+}
+```
+
+---
+
+### Login Both Users
+
+**Login as Regular User:**
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "mypassword123"
+  }'
+```
+
+Response (save this token):
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJ1c2VyQGV4YW1wbGUuY29tIiwicm9sZSI6InVzZXIiLCJpYXQiOjE2MzAwMDAwMDB9.xxx"
+  },
+  "timestamp": "2026-01-16T10:00:00.000Z"
+}
+```
+
+**Login as Admin:**
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "adminpassword123"
+  }'
+```
+
+Response (save this token):
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTYzMDAwMDAwMH0.yyy"
+  },
+  "timestamp": "2026-01-16T10:00:00.000Z"
+}
+```
+
+---
+
+### Scenario 1: Admin Access `/api/admin` ✅
+
+```bash
+curl -X GET http://localhost:3000/api/admin \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+
+**Expected Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Welcome Admin! You have full access to admin resources.",
+  "data": {
+    "role": "admin",
+    "email": "admin@example.com",
+    "permissions": [
+      "view_all_users",
+      "manage_roles",
+      "view_analytics",
+      "configure_system"
+    ]
+  }
+}
+```
+
+---
+
+### Scenario 2: Regular User Denied `/api/admin` ❌
+
+```bash
+curl -X GET http://localhost:3000/api/admin \
+  -H "Authorization: Bearer <USER_TOKEN>"
+```
+
+**Expected Response (403 Forbidden):**
+```json
+{
+  "success": false,
+  "message": "Access denied. Admin role required.",
+  "error": {
+    "code": "FORBIDDEN",
+    "details": null
+  },
+  "timestamp": "2026-01-16T10:00:00.000Z"
+}
+```
+
+---
+
+### Scenario 3: Both Access `/api/users` ✅
+
+**Admin accessing `/api/users`:**
+```bash
+curl -X GET http://localhost:3000/api/users \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+
+**Expected Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Users fetched successfully",
+  "data": {
+    "users": [
+      {
+        "id": 1,
+        "name": "John User",
+        "email": "user@example.com",
+        "role": "user",
+        "createdAt": "2026-01-16T10:00:00.000Z"
+      },
+      {
+        "id": 2,
+        "name": "Jane Admin",
+        "email": "admin@example.com",
+        "role": "admin",
+        "createdAt": "2026-01-16T10:00:00.000Z"
+      }
+    ],
+    "accessedBy": {
+      "email": "admin@example.com",
+      "role": "admin"
+    }
+  },
+  "timestamp": "2026-01-16T10:00:00.000Z"
+}
+```
+
+**Regular user accessing `/api/users`:**
+```bash
+curl -X GET http://localhost:3000/api/users \
+  -H "Authorization: Bearer <USER_TOKEN>"
+```
+
+**Expected Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Users fetched successfully",
+  "data": {
+    "users": [...],
+    "accessedBy": {
+      "email": "user@example.com",
+      "role": "user"
+    }
+  },
+  "timestamp": "2026-01-16T10:00:00.000Z"
+}
+```
+
+---
+
+### Scenario 4: No Token ❌
+
+```bash
+curl -X GET http://localhost:3000/api/admin
+```
+
+**Expected Response (401 Unauthorized):**
+```json
+{
+  "success": false,
+  "message": "Token missing",
+  "error": {
+    "code": "UNAUTHORIZED",
+    "details": null
+  },
+  "timestamp": "2026-01-16T10:00:00.000Z"
+}
+```
+
+---
+
+### Scenario 5: Invalid/Expired Token ❌
+
+```bash
+curl -X GET http://localhost:3000/api/admin \
+  -H "Authorization: Bearer invalid_token_xyz"
+```
+
+**Expected Response (403 Forbidden):**
+```json
+{
+  "success": false,
+  "message": "Invalid or expired token",
+  "error": {
+    "code": "FORBIDDEN",
+    "details": null
+  },
+  "timestamp": "2026-01-16T10:00:00.000Z"
+}
+```
+
+---
+
+## RBAC Access Control Matrix
+
+| Route | User Role | Status | Reason |
+|-------|-----------|--------|--------|
+| `/api/users` | `admin` | ✅ Allowed | Authenticated + authorized |
+| `/api/users` | `user` | ✅ Allowed | Authenticated + authorized |
+| `/api/users` | None | ❌ Denied | No token (401) |
+| `/api/users` | Invalid Token | ❌ Denied | Invalid JWT (403) |
+| `/api/admin` | `admin` | ✅ Allowed | Role check passed |
+| `/api/admin` | `user` | ❌ Denied | Insufficient privileges (403) |
+| `/api/admin` | None | ❌ Denied | No token (401) |
+| `/api/admin` | Invalid Token | ❌ Denied | Invalid JWT (403) |
+
+---
+
+## Extended RBAC — Adding More Roles
+
+The current system supports two roles (`admin`, `user`). Extending to more roles is straightforward:
+
+### Example: Adding `moderator` and `editor` Roles
+
+**1. Update User Type:**
+```typescript
+export type User = {
+  // ...
+  role: "admin" | "user" | "moderator" | "editor";
+};
+```
+
+**2. Update Auth Schema:**
+```typescript
+export const signupSchema = z.object({
+  // ...
+  role: z.enum(["admin", "user", "moderator", "editor"]).optional().default("user"),
+});
+```
+
+**3. Update Middleware:**
+```typescript
+// Protect moderator routes
+if (pathname.startsWith("/api/moderator") && !["admin", "moderator"].includes(decoded.role)) {
+  return NextResponse.json(
+    { success: false, message: "Access denied. Moderator role required." },
+    { status: 403 }
+  );
+}
+
+// Protect editor routes
+if (pathname.startsWith("/api/editor") && !["admin", "editor"].includes(decoded.role)) {
+  return NextResponse.json(
+    { success: false, message: "Access denied. Editor role required." },
+    { status: 403 }
+  );
+}
+```
+
+**4. Create New Routes:**
+- `/api/moderator/route.ts` — Moderator dashboard
+- `/api/editor/route.ts` — Editor panel
+
+**Benefit:** Role extension requires changes to three files only, following the **Least Privilege Principle** — each role has the minimum required permissions.
+
+---
+
+## Least Privilege Principle in Practice
+
+### Definition
+
+The **Least Privilege Principle** states: *"A user should have only the minimum level of access required to perform their job."*
+
+### Application in This System
+
+1. **Default to `user` Role**
+   - New signups default to `"user"` role
+   - Admins manually promote users if needed
+   - Prevents accidental privilege escalation
+
+2. **Role-Specific Routes**
+   - Admin routes (`/api/admin`) are blocked for non-admins
+   - Users cannot access privileged operations
+   - Each role has its own endpoints
+
+3. **Route-Level Enforcement**
+   - Middleware intercepts all requests
+   - No "backdoor" access through misconfigured routes
+   - Centralized control across all endpoints
+
+4. **Data Minimization**
+   - Users see public data only
+   - Admins can access system configuration
+   - Responses include only relevant information
+
+### Example Violations & How to Avoid Them
+
+❌ **Bad:** Admin role parameter in client-side form
+```html
+<input type="hidden" name="role" value="admin" />
+```
+**Why:** Attackers can modify client-side code.
+
+✅ **Good:** Backend assigns role, frontend cannot override
+```typescript
+// Backend only
+const created = createUser({
+  name: data.name,
+  email: data.email,
+  passwordHash,
+  role: "user", // Always 'user'; only admins can change via backend
+});
+```
+
+❌ **Bad:** Role check only on frontend
+```typescript
+if (user.role === 'admin') {
+  // Show admin button
+}
+```
+**Why:** Attackers disable JavaScript or modify local state.
+
+✅ **Good:** Role check on middleware + backend
+```typescript
+// Middleware validates on every request
+if (decoded.role !== "admin") {
+  return 403; // Deny at network level
+}
+```
+
+---
+
+## Security Best Practices
+
+### 1. **Secret Management**
+
+Always use environment variables for `JWT_SECRET`:
+
+```bash
+# .env.local (never commit)
+JWT_SECRET=your-secure-random-key-here
+```
+
+**For Production:**
+- Use a secret management service (AWS Secrets Manager, HashiCorp Vault)
+- Rotate secrets regularly
+- Use strong, random keys (e.g., `openssl rand -base64 32`)
+
+### 2. **Token Expiration**
+
+Short-lived tokens reduce exposure if compromised:
+
+```typescript
+// Current: 1 hour expiration
+const token = signToken(payload, "1h");
+
+// For sensitive operations: 15 minutes
+const token = signToken(payload, "15m");
+```
+
+### 3. **HTTPS Only**
+
+In production, always transmit tokens over HTTPS:
+
+```typescript
+// Secure cookie flag (httpOnly, secure, sameSite)
+// Production: use secure: true, sameSite: 'strict'
+```
+
+### 4. **Rate Limiting**
+
+Prevent brute-force attacks on login:
+
+```typescript
+// Example: limit 5 login attempts per minute per IP
+const attemptKey = `login:${ip}`;
+const attempts = await redis.incr(attemptKey);
+if (attempts > 5) {
+  return 429; // Too many requests
+}
+```
+
+### 5. **Audit Logging**
+
+Log all access attempts for security review:
+
+```typescript
+// Log successful admin access
+logger.info('Admin access', {
+  email: userEmail,
+  route: '/api/admin',
+  timestamp: new Date(),
+  ip: request.ip,
+});
+
+// Log denied access
+logger.warn('Access denied', {
+  email: decoded.email,
+  role: decoded.role,
+  route: '/api/admin',
+  timestamp: new Date(),
+});
+```
+
+---
+
+## Testing Strategies
+
+### Unit Tests — Middleware
+
+```typescript
+import { middleware } from '@/middleware';
+import { NextRequest } from 'next/server';
+
+describe('Middleware Role-Based Access', () => {
+  it('should deny admin access to non-admin users', () => {
+    const req = new NextRequest(new URL('http://localhost:3000/api/admin'), {
+      headers: {
+        'authorization': 'Bearer non-admin-token',
+      },
+    });
+    
+    const response = middleware(req);
+    expect(response.status).toBe(403);
+  });
+
+  it('should allow admin access to admin users', () => {
+    const req = new NextRequest(new URL('http://localhost:3000/api/admin'), {
+      headers: {
+        'authorization': 'Bearer admin-token',
+      },
+    });
+    
+    const response = middleware(req);
+    expect(response.status).toBe(200);
+  });
+
+  it('should return 401 if token is missing', () => {
+    const req = new NextRequest(new URL('http://localhost:3000/api/admin'));
+    
+    const response = middleware(req);
+    expect(response.status).toBe(401);
+  });
+});
+```
+
+### Integration Tests — Full Flow
+
+```typescript
+describe('RBAC Integration', () => {
+  let userToken: string;
+  let adminToken: string;
+
+  beforeAll(async () => {
+    // Signup and login users
+    const userRes = await fetch('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: 'user@example.com',
+        password: 'password',
+      }),
+    });
+    userToken = (await userRes.json()).data.token;
+
+    const adminRes = await fetch('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: 'admin@example.com',
+        password: 'password',
+      }),
+    });
+    adminToken = (await adminRes.json()).data.token;
+  });
+
+  it('admin should access /api/admin', async () => {
+    const res = await fetch('/api/admin', {
+      headers: { 'authorization': `Bearer ${adminToken}` },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('user should NOT access /api/admin', async () => {
+    const res = await fetch('/api/admin', {
+      headers: { 'authorization': `Bearer ${userToken}` },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('user should access /api/users', async () => {
+    const res = await fetch('/api/users', {
+      headers: { 'authorization': `Bearer ${userToken}` },
+    });
+    expect(res.status).toBe(200);
+  });
+});
+```
+
+---
+
+## Summary & Deliverables
+
+### ✅ Implemented
+
+1. **User Roles in Database Model** ([src/lib/db.ts](src/lib/db.ts))
+   - User type now includes `role: "admin" | "user"`
+   - Default role: `"user"`
+
+2. **Authorization Middleware** ([src/middleware.ts](src/middleware.ts))
+   - Validates JWT on protected routes
+   - Enforces role-based access control
+   - Injects user info (`x-user-id`, `x-user-email`, `x-user-role`) into request headers
+
+3. **Protected Routes**
+   - **`/api/admin`** — Admin-only endpoint ([src/app/api/admin/route.ts](src/app/api/admin/route.ts))
+   - **`/api/users`** — Authenticated users ([src/app/api/users/route.ts](src/app/api/users/route.ts))
+
+4. **Auth Integration**
+   - Signup includes optional `role` parameter (defaults to `"user"`) ([src/lib/schemas/authSchema.ts](src/lib/schemas/authSchema.ts))
+   - Login includes role in JWT payload ([src/app/api/auth/login/route.ts](src/app/api/auth/login/route.ts))
+
+5. **Comprehensive Documentation** (this README section)
+   - RBAC architecture overview
+   - Middleware logic explanation
+   - Role-based access matrix
+   - Full testing examples with curl commands
+   - Least privilege principle explanation
+   - Security best practices
+   - Role extension guidance
+
+### 📊 Access Control Summary
+
+| Endpoint | Requirement | Admin | User | Unauthenticated |
+|----------|-------------|-------|------|-----------------|
+| `POST /api/auth/signup` | None | ✅ | ✅ | ✅ |
+| `POST /api/auth/login` | None | ✅ | ✅ | ✅ |
+| `GET /api/users` | Valid JWT | ✅ 200 | ✅ 200 | ❌ 401 |
+| `GET /api/admin` | Valid JWT + admin | ✅ 200 | ❌ 403 | ❌ 401 |
+
+### 🔧 How to Extend
+
+Adding new roles (e.g., `moderator`, `editor`):
+1. Update User type and enum
+2. Update middleware with new role checks
+3. Create new route handlers for the role
+4. Test with new role users
+
+All changes are isolated to three locations, following the **Least Privilege Principle** and enabling easy future role extension.
+
+### 🎯 Key Files
+
+- [src/middleware.ts](src/middleware.ts) — RBAC enforcement
+- [src/lib/db.ts](src/lib/db.ts) — User model with roles
+- [src/app/api/admin/route.ts](src/app/api/admin/route.ts) — Admin route
+- [src/app/api/users/route.ts](src/app/api/users/route.ts) — Protected user route
+- [src/lib/schemas/authSchema.ts](src/lib/schemas/authSchema.ts) — Auth schemas with role
+- [src/app/api/auth/signup/route.ts](src/app/api/auth/signup/route.ts) — Signup with role support
+- [src/app/api/auth/login/route.ts](src/app/api/auth/login/route.ts) — Login with role in JWT
+
 

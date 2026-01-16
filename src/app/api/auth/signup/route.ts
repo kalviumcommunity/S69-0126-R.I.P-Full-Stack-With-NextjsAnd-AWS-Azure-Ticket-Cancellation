@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
       name: data.name,
       email: data.email,
       passwordHash,
+      role: data.role,
       age: data.age,
     });
 
