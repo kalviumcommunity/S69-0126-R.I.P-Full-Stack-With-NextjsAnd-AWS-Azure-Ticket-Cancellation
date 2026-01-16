@@ -1,41 +1,41 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sendSuccess, sendError } from '@/lib/responseHandler';
 import { ERROR_CODES } from '@/lib/errorCodes';
 import { userSchema } from '@/lib/schemas/userSchema';
 import { ZodError } from 'zod';
 import { getPublicUsers } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 
 // TODO: Import your database client here
 // import { db } from '@/lib/db';
 
 /**
  * GET /api/users
- * Get all users
+ * Get all users (Protected - requires valid JWT)
  */
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+    const userEmail = request.headers.get('x-user-email');
+    const userRole = request.headers.get('x-user-role');
 
-    if (!token) {
-      return sendError('Token missing', ERROR_CODES.UNAUTHORIZED, 401);
-    }
-
-    try {
-      verifyToken(token);
-    } catch {
-      return sendError('Invalid or expired token', ERROR_CODES.FORBIDDEN, 403);
+    if (!userEmail) {
+      return sendError('Unauthorized access', ERROR_CODES.UNAUTHORIZED, 401);
     }
 
     const users = getPublicUsers();
-    return sendSuccess(users, 'Users fetched successfully', 200);
+    return sendSuccess(
+      {
+        users,
+        accessedBy: { email: userEmail, role: userRole },
+      },
+      'Users fetched successfully',
+      200
+    );
   } catch (error) {
     return sendError(
       "Failed to fetch users",
       ERROR_CODES.DATABASE_FAILURE,
       500,
-      errorMessage
+      error
     );
   }
 }
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       "Failed to create user",
       ERROR_CODES.INTERNAL_ERROR,
       500,
-      errorMessage
+      error
     );
   }
 }

@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       return sendError("Invalid credentials", ERROR_CODES.UNAUTHORIZED, 401);
     }
 
-    const token = signToken({ id: user.id, email: user.email });
+    const token = signToken({ id: user.id, email: user.email, role: user.role });
 
     return sendSuccess(
       { token },
