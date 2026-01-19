@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendSuccess, sendError } from '@/lib/responseHandler';
-import { ERROR_CODES } from '@/lib/errorCodes';
 import { userSchema } from '@/lib/schemas/userSchema';
 import { ZodError } from 'zod';
 import { getPublicUsers } from '@/lib/db';
+import { handleError, AuthenticationError, ValidationError } from '@/lib/errorHandler';
+import { logger } from '@/lib/logger';
 
 // TODO: Import your database client here
 // import { db } from '@/lib/db';
@@ -18,25 +18,25 @@ export async function GET(request: NextRequest) {
     const userRole = request.headers.get('x-user-role');
 
     if (!userEmail) {
-      return sendError('Unauthorized access', ERROR_CODES.UNAUTHORIZED, 401);
+      throw new AuthenticationError('Unauthorized access');
     }
 
     const users = getPublicUsers();
-    return sendSuccess(
+    logger.info('Users fetched successfully', { email: userEmail, count: users.length });
+    
+    return NextResponse.json(
       {
-        users,
-        accessedBy: { email: userEmail, role: userRole },
+        success: true,
+        data: {
+          users,
+          accessedBy: { email: userEmail, role: userRole },
+        },
+        message: 'Users fetched successfully',
       },
-      'Users fetched successfully',
-      200
+      { status: 200 }
     );
   } catch (error) {
-    return sendError(
-      "Failed to fetch users",
-      ERROR_CODES.DATABASE_FAILURE,
-      500,
-      error
-    );
+    return handleError(error, 'GET /api/users');
   }
 }
 
@@ -54,11 +54,7 @@ export async function POST(request: NextRequest) {
     // TODO: Check if email already exists in database
     // const existingUser = await db.user.findUnique({ where: { email: validatedData.email } });
     // if (existingUser) {
-    //   return sendError(
-    //     'Email already exists',
-    //     ERROR_CODES.DUPLICATE_RESOURCE,
-    //     409
-    //   );
+    //   throw new ConflictError('Email already exists');
     // }
 
     // TODO: Create user in database
@@ -76,26 +72,24 @@ export async function POST(request: NextRequest) {
       age: validatedData.age
     };
 
-    return sendSuccess(newUser, 'User created successfully', 201);
+    logger.info('User created successfully', { userId: newUser.id, email: newUser.email });
+    return NextResponse.json(
+      {
+        success: true,
+        data: newUser,
+        message: 'User created successfully',
+      },
+      { status: 201 }
+    );
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof ZodError) {
-      return sendError(
-        'Validation failed',
-        ERROR_CODES.VALIDATION_ERROR,
-        400,
-        error.issues.map((e) => ({ 
-          field: e.path.join('.'), 
-          message: e.message 
-        }))
+      const validationError = new ValidationError(
+        'Validation failed: ' + error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
       );
+      return handleError(validationError, 'POST /api/users');
     }
 
-    return sendError(
-      "Failed to create user",
-      ERROR_CODES.INTERNAL_ERROR,
-      500,
-      error
-    );
+    return handleError(error, 'POST /api/users');
   }
 }

@@ -78,13 +78,164 @@ http://localhost:3000
 
 ## API Documentation
 
+### Centralized Error Handling
+
+Modern web applications require robust error handling to ensure reliability, security, and maintainability. This project implements a **centralized error handling system** that provides:
+
+- **Consistency**: Uniform error response format across all endpoints
+- **Security**: Sensitive information hidden in production
+- **Observability**: Structured logging for debugging and monitoring
+- **Developer Experience**: Clear error messages and types
+
+#### Why Centralized Error Handling Matters
+
+Without a centralized error handling strategy:
+- ❌ Error responses are inconsistent across endpoints
+- ❌ Stack traces leak in production, exposing system internals
+- ❌ Logs are scattered and hard to search
+- ❌ Debugging becomes time-consuming and frustrating
+
+With centralized error handling:
+- ✅ Every error follows the same format
+- ✅ Production responses are safe and user-friendly
+- ✅ Structured logs make debugging efficient
+- ✅ Error types guide client-side error handling
+
+#### Environment-Specific Behavior
+
+| Environment | Behavior |
+|------------|----------|
+| **Development** | Returns detailed error messages with full stack traces for debugging |
+| **Production** | Returns user-safe messages only; logs full details internally |
+
+### Error Handling Architecture
+
+#### 1. Logger Utility (`lib/logger.ts`)
+
+Provides structured JSON logging with timestamps and metadata:
+
+```typescript
+import { logger } from '@/lib/logger';
+
+// Log informational messages
+logger.info('User created successfully', { userId: 123, email: 'user@example.com' });
+
+// Log errors
+logger.error('Database connection failed', { 
+  error: 'Connection timeout',
+  retries: 3 
+});
+
+// Log warnings
+logger.warn('Rate limit approaching', { requestCount: 95 });
+
+// Log debug info (development only)
+logger.debug('Processing request', { endpoint: '/api/users' });
+```
+
+**Output Example:**
+```json
+{
+  "level": "error",
+  "message": "Database connection failed",
+  "meta": {
+    "error": "Connection timeout",
+    "retries": 3
+  },
+  "timestamp": "2026-01-19T10:30:45.123Z"
+}
+```
+
+#### 2. Error Handler (`lib/errorHandler.ts`)
+
+Centralizes all error processing with custom error types:
+
+**Custom Error Types:**
+
+```typescript
+import { 
+  ValidationError,      // 400 - Invalid input
+  AuthenticationError,  // 401 - Not authenticated
+  AuthorizationError,   // 403 - Insufficient permissions
+  NotFoundError,        // 404 - Resource not found
+  ConflictError,        // 409 - Resource conflict
+  handleError           // Main error handler
+} from '@/lib/errorHandler';
+
+// Throw custom errors in your routes
+throw new NotFoundError('User not found');
+throw new ValidationError('Email format is invalid');
+throw new ConflictError('Email already exists');
+```
+
+**Usage in API Routes:**
+
+```typescript
+export async function GET(request: NextRequest) {
+  try {
+    // Your route logic
+    const user = await db.user.findUnique({ where: { id } });
+    
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+    
+    return NextResponse.json({ success: true, data: user });
+  } catch (error) {
+    return handleError(error, 'GET /api/users/:id');
+  }
+}
+```
+
+#### 3. Response Examples
+
+**Development Mode Response (with stack trace):**
+
+```bash
+curl -X GET http://localhost:3000/api/users/999
+```
+
+```json
+{
+  "success": false,
+  "message": "User not found",
+  "timestamp": "2026-01-19T10:30:45.123Z",
+  "errorType": "NotFoundError",
+  "stack": "NotFoundError: User not found\n    at GET (/app/api/users/[id]/route.ts:15:13)\n    ..."
+}
+```
+
+**Production Mode Response (safe for users):**
+
+```json
+{
+  "success": false,
+  "message": "The requested resource was not found.",
+  "timestamp": "2026-01-19T10:30:45.123Z",
+  "errorType": "NotFoundError"
+}
+```
+
+**Production Server Logs (detailed for debugging):**
+
+```json
+{
+  "level": "error",
+  "message": "Error in GET /api/users/999",
+  "meta": {
+    "message": "User not found",
+    "statusCode": 404,
+    "errorType": "NotFoundError",
+    "stack": "REDACTED",
+    "context": "GET /api/users/999"
+  },
+  "timestamp": "2026-01-19T10:30:45.123Z"
+}
+```
+
 ### Unified Response Envelope
 
-Every API endpoint follows a standardized response format to ensure consistency, improve debugging, and enhance developer experience.
-
-#### Response Structure
-
-All responses include the following envelope:
+Every API endpoint follows a standardized response format:
 
 ```json
 {
@@ -2229,4 +2380,340 @@ All changes are isolated to three locations, following the **Least Privilege Pri
 - [src/app/api/auth/signup/route.ts](src/app/api/auth/signup/route.ts) — Signup with role support
 - [src/app/api/auth/login/route.ts](src/app/api/auth/login/route.ts) — Login with role in JWT
 
+---
+
+## Testing Centralized Error Handling
+
+### Testing in Development Mode
+
+Run the application in development:
+
+```bash
+npm run dev
+```
+
+**Test 1: Validation Error**
+
+```bash
+curl -X POST http://localhost:3000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+**Expected Response:**
+```json
+{
+  "success": false,
+  "message": "Validation failed: name: Required, email: Required",
+  "timestamp": "2026-01-19T10:30:45.123Z",
+  "errorType": "ValidationError",
+  "stack": "ValidationError: Validation failed...\n    at POST (/app/api/users/route.ts:45:13)\n    ..."
+}
+```
+
+**Test 2: Not Found Error**
+
+```bash
+curl -X GET http://localhost:3000/api/users/999 \
+  -H "x-user-email: test@example.com"
+```
+
+**Expected Response:**
+```json
+{
+  "success": false,
+  "message": "User not found",
+  "timestamp": "2026-01-19T10:30:45.123Z",
+  "errorType": "NotFoundError",
+  "stack": "NotFoundError: User not found\n    at GET (/app/api/users/[id]/route.ts:20:13)\n    ..."
+}
+```
+
+**Test 3: Authentication Error**
+
+```bash
+curl -X GET http://localhost:3000/api/users
+```
+
+**Expected Response:**
+```json
+{
+  "success": false,
+  "message": "Unauthorized access",
+  "timestamp": "2026-01-19T10:30:45.123Z",
+  "errorType": "AuthenticationError",
+  "stack": "AuthenticationError: Unauthorized access..."
+}
+```
+
+### Testing in Production Mode
+
+Set environment to production:
+
+```bash
+# Windows PowerShell
+$env:NODE_ENV="production"
+npm run build
+npm start
+
+# Or use a .env file
+# NODE_ENV=production
+```
+
+**Test 1: Validation Error (Production)**
+
+```bash
+curl -X POST http://localhost:3000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+**Expected Response (User-Safe):**
+```json
+{
+  "success": false,
+  "message": "Invalid request. Please check your input.",
+  "timestamp": "2026-01-19T10:30:45.123Z",
+  "errorType": "ValidationError"
+}
+```
+
+**Server Log (Detailed):**
+```json
+{
+  "level": "error",
+  "message": "Error in POST /api/users",
+  "meta": {
+    "message": "Validation failed: name: Required, email: Required",
+    "statusCode": 400,
+    "errorType": "ValidationError",
+    "stack": "REDACTED",
+    "context": "POST /api/users"
+  },
+  "timestamp": "2026-01-19T10:30:45.123Z"
+}
+```
+
+**Test 2: Generic Server Error (Production)**
+
+```bash
+# Simulate database failure in your code
+# throw new Error("Database connection timeout");
+
+curl -X GET http://localhost:3000/api/users \
+  -H "x-user-email: test@example.com"
+```
+
+**Expected Response (User-Safe):**
+```json
+{
+  "success": false,
+  "message": "Something went wrong. Please try again later.",
+  "timestamp": "2026-01-19T10:30:45.123Z"
+}
+```
+
+**Server Log (Detailed for Ops Team):**
+```json
+{
+  "level": "error",
+  "message": "Error in GET /api/users",
+  "meta": {
+    "message": "Database connection timeout",
+    "statusCode": 500,
+    "errorType": "Error",
+    "stack": "REDACTED",
+    "context": "GET /api/users"
+  },
+  "timestamp": "2026-01-19T10:30:45.123Z"
+}
+```
+
+### Comparison: Development vs Production
+
+| Aspect | Development | Production |
+|--------|------------|-----------|
+| **Error Message** | Detailed (actual error message) | User-safe (generic message) |
+| **Stack Trace** | Included in response | Not included |
+| **Server Logs** | Full stack trace | Stack marked as "REDACTED" |
+| **Error Type** | Included | Included |
+| **Purpose** | Fast debugging | Security & user trust |
+
+### Error Type Reference
+
+All custom error types are handled with appropriate HTTP status codes:
+
+| Error Type | Status Code | When to Use | Example |
+|-----------|-------------|-------------|---------|
+| `ValidationError` | 400 | Invalid input data | "Email format is invalid" |
+| `AuthenticationError` | 401 | Missing/invalid credentials | "Authentication required" |
+| `AuthorizationError` | 403 | Insufficient permissions | "Admin access required" |
+| `NotFoundError` | 404 | Resource doesn't exist | "User not found" |
+| `ConflictError` | 409 | Resource already exists | "Email already registered" |
+| `AppError` (generic) | 500 | Any other error | Custom status code |
+
+---
+
+## Reflection: Benefits of Centralized Error Handling
+
+### 1. **Consistency Across the API**
+
+Before centralized error handling, different routes might return errors in different formats:
+
+```typescript
+// Route 1
+return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+// Route 2
+return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
+
+// Route 3
+return NextResponse.json({ status: "error", data: null, error: "Not found" });
+```
+
+With centralized handling, **all errors follow the same format**, making client-side error handling predictable and reliable.
+
+### 2. **Security in Production**
+
+Exposing stack traces in production can reveal:
+- Internal file structure
+- Database schema details
+- Third-party library versions
+- Security vulnerabilities
+
+Our error handler **automatically redacts sensitive information** in production while keeping full details in logs for developers.
+
+### 3. **Improved Debugging Experience**
+
+Structured logs make it easy to:
+- **Search logs** by error type, context, or timestamp
+- **Filter errors** by severity (error, warn, info)
+- **Correlate errors** with user actions
+- **Monitor patterns** and detect issues early
+
+Example log search in production:
+```bash
+# Find all authentication failures
+grep '"errorType":"AuthenticationError"' logs.json
+
+# Find errors in specific endpoint
+grep '"context":"GET /api/users"' logs.json | grep '"level":"error"'
+```
+
+### 4. **Better User Experience**
+
+Instead of cryptic error messages:
+```json
+{ "error": "ECONNREFUSED 127.0.0.1:5432" }
+```
+
+Users see helpful, actionable messages:
+```json
+{ "message": "Something went wrong. Please try again later." }
+```
+
+### 5. **Extensibility**
+
+Adding new error types is simple:
+
+```typescript
+// lib/errorHandler.ts
+export class RateLimitError extends AppError {
+  constructor(message: string = "Too many requests") {
+    super(message, 429);
+  }
+}
+
+// Usage in routes
+if (requestCount > limit) {
+  throw new RateLimitError(`Rate limit exceeded. Try again in ${retryAfter}s`);
+}
+```
+
+The error handler automatically processes the new type with appropriate status code and logging.
+
+### 6. **Reduced Boilerplate**
+
+Before:
+```typescript
+export async function GET(request: NextRequest) {
+  try {
+    // logic
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { success: false, message: "Error" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+After:
+```typescript
+export async function GET(request: NextRequest) {
+  try {
+    // logic
+  } catch (error) {
+    return handleError(error, 'GET /api/users');
+  }
+}
+```
+
+Even better with the `asyncHandler` wrapper:
+```typescript
+export const GET = asyncHandler(async (request: NextRequest) => {
+  // logic - errors handled automatically
+}, 'GET /api/users');
+```
+
+### 7. **Future-Proof Architecture**
+
+The centralized approach makes it easy to:
+- Integrate error tracking services (Sentry, Rollbar)
+- Add custom error reporting dashboards
+- Implement error alerting (Slack, email)
+- Analyze error trends and patterns
+
+```typescript
+// Future enhancement example
+export function handleError(error: any, context: string) {
+  // Existing logging
+  logger.error(`Error in ${context}`, {...});
+  
+  // Add Sentry integration
+  if (isProd) {
+    Sentry.captureException(error, { tags: { context } });
+  }
+  
+  // Add Slack alerting for critical errors
+  if (error.statusCode === 500) {
+    await sendSlackAlert(error, context);
+  }
+  
+  return NextResponse.json(...);
+}
+```
+
+---
+
+## Key Takeaways
+
+✅ **Centralized error handling is essential** for production-ready applications  
+✅ **Environment-specific behavior** balances debugging needs with security  
+✅ **Structured logging** makes debugging efficient and scalable  
+✅ **Custom error types** provide semantic clarity and proper HTTP status codes  
+✅ **User-safe messages** build trust and improve UX  
+✅ **Consistent format** simplifies client-side error handling  
+✅ **Future extensibility** allows easy integration with monitoring tools
+
+---
+
+## Next Steps
+
+1. **Integrate Error Tracking**: Add Sentry or similar service for real-time error monitoring
+2. **Enhanced Logging**: Use Winston or Pino for advanced log management
+3. **Error Metrics**: Track error rates, types, and patterns in dashboards
+4. **Retry Logic**: Implement automatic retry for transient failures
+5. **Circuit Breaker**: Add circuit breaker pattern for external service calls
 

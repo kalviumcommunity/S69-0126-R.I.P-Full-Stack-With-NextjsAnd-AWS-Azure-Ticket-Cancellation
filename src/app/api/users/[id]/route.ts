@@ -1,8 +1,8 @@
-import { NextRequest } from 'next/server';
-import { sendSuccess, sendError } from '@/lib/responseHandler';
-import { ERROR_CODES } from '@/lib/errorCodes';
+import { NextRequest, NextResponse } from 'next/server';
 import { userSchema, userUpdateSchema } from '@/lib/schemas/userSchema';
 import { ZodError } from 'zod';
+import { handleError, NotFoundError, ValidationError } from '@/lib/errorHandler';
+import { logger } from '@/lib/logger';
 
 // TODO: Import your database client here
 // import { db } from '@/lib/db';
@@ -12,7 +12,7 @@ import { ZodError } from 'zod';
  * Get user by ID
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -20,11 +20,7 @@ export async function GET(
     const userId = parseInt(id);
 
     if (isNaN(userId)) {
-      return sendError(
-        "Invalid user ID format",
-        ERROR_CODES.INVALID_FORMAT,
-        400
-      );
+      throw new ValidationError("Invalid user ID format");
     }
 
     // TODO: Fetch user from database
@@ -32,18 +28,20 @@ export async function GET(
     const user = null;
 
     if (!user) {
-      return sendError("User not found", ERROR_CODES.NOT_FOUND, 404);
+      throw new NotFoundError("User not found");
     }
 
-    return sendSuccess(user, "User fetched successfully", 200);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return sendError(
-      "Failed to fetch user",
-      ERROR_CODES.DATABASE_FAILURE,
-      500,
-      errorMessage
+    logger.info('User fetched by ID', { userId });
+    return NextResponse.json(
+      {
+        success: true,
+        data: user,
+        message: "User fetched successfully",
+      },
+      { status: 200 }
     );
+  } catch (error: unknown) {
+    return handleError(error, `GET /api/users/${(await params).id}`);
   }
 }
 
@@ -52,20 +50,16 @@ export async function GET(
  * Update a user (full update)
  */
 export async function PUT(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
     const userId = parseInt(id);
-    const body = await request.json();
+    const body = await _request.json();
 
     if (isNaN(userId)) {
-      return sendError(
-        "Invalid user ID format",
-        ERROR_CODES.INVALID_FORMAT,
-        400
-      );
+      throw new ValidationError("Invalid user ID format");
     }
 
     // Validate request body with Zod
@@ -74,11 +68,7 @@ export async function PUT(
     // TODO: Check if user exists
     // const existingUser = await db.user.findUnique({ where: { id: userId } });
     // if (!existingUser) {
-    //   return sendError(
-    //     'User not found',
-    //     ERROR_CODES.NOT_FOUND,
-    //     404
-    //   );
+    //   throw new NotFoundError('User not found');
     // }
 
     // TODO: Check if email is taken by another user
@@ -86,11 +76,7 @@ export async function PUT(
     //   where: { email: validatedData.email, NOT: { id: userId } },
     // });
     // if (emailTaken) {
-    //   return sendError(
-    //     'Email already exists',
-    //     ERROR_CODES.DUPLICATE_RESOURCE,
-    //     409
-    //   );
+    //   throw new ConflictError('Email already exists');
     // }
 
     // TODO: Update user in database
@@ -105,27 +91,25 @@ export async function PUT(
       age: validatedData.age
     };
 
-    return sendSuccess(updatedUser, 'User updated successfully', 200);
+    logger.info('User updated successfully', { userId });
+    return NextResponse.json(
+      {
+        success: true,
+        data: updatedUser,
+        message: 'User updated successfully',
+      },
+      { status: 200 }
+    );
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof ZodError) {
-      return sendError(
-        'Validation failed',
-        ERROR_CODES.VALIDATION_ERROR,
-        400,
-        error.issues.map((e) => ({ 
-          field: e.path.join('.'), 
-          message: e.message 
-        }))
+      const validationError = new ValidationError(
+        'Validation failed: ' + error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
       );
+      return handleError(validationError, `PUT /api/users/${(await params).id}`);
     }
 
-    return sendError(
-      "Failed to update user",
-      ERROR_CODES.DATABASE_FAILURE,
-      500,
-      errorMessage
-    );
+    return handleError(error, `PUT /api/users/${(await params).id}`);
   }
 }
 
@@ -134,20 +118,16 @@ export async function PUT(
  * Update a user (partial update)
  */
 export async function PATCH(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
     const userId = parseInt(id);
-    const body = await request.json();
+    const body = await _request.json();
 
     if (isNaN(userId)) {
-      return sendError(
-        "Invalid user ID format",
-        ERROR_CODES.INVALID_FORMAT,
-        400
-      );
+      throw new ValidationError("Invalid user ID format");
     }
 
     // Validate request body with Zod (partial schema allows optional fields)
@@ -155,21 +135,13 @@ export async function PATCH(
 
     // Check if at least one field is provided
     if (Object.keys(validatedData).length === 0) {
-      return sendError(
-        'At least one field must be provided for update',
-        ERROR_CODES.MISSING_FIELD,
-        400
-      );
+      throw new ValidationError('At least one field must be provided for update');
     }
 
     // TODO: Check if user exists
     // const existingUser = await db.user.findUnique({ where: { id: userId } });
     // if (!existingUser) {
-    //   return sendError(
-    //     'User not found',
-    //     ERROR_CODES.NOT_FOUND,
-    //     404
-    //   );
+    //   throw new NotFoundError('User not found');
     // }
 
     // TODO: Check if email is taken by another user
@@ -178,11 +150,7 @@ export async function PATCH(
     //     where: { email: validatedData.email, NOT: { id: userId } },
     //   });
     //   if (emailTaken) {
-    //     return sendError(
-    //       'Email already exists',
-    //       ERROR_CODES.DUPLICATE_RESOURCE,
-    //       409
-    //     );
+    //     throw new ConflictError('Email already exists');
     //   }
     // }
 
@@ -193,27 +161,25 @@ export async function PATCH(
     // });
     const updatedUser = { id: userId, ...validatedData };
 
-    return sendSuccess(updatedUser, 'User updated successfully', 200);
+    logger.info('User partially updated', { userId, fields: Object.keys(validatedData) });
+    return NextResponse.json(
+      {
+        success: true,
+        data: updatedUser,
+        message: 'User updated successfully',
+      },
+      { status: 200 }
+    );
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof ZodError) {
-      return sendError(
-        'Validation failed',
-        ERROR_CODES.VALIDATION_ERROR,
-        400,
-        error.issues.map((e) => ({ 
-          field: e.path.join('.'), 
-          message: e.message 
-        }))
+      const validationError = new ValidationError(
+        'Validation failed: ' + error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
       );
+      return handleError(validationError, `PATCH /api/users/${(await params).id}`);
     }
 
-    return sendError(
-      "Failed to update user",
-      ERROR_CODES.DATABASE_FAILURE,
-      500,
-      errorMessage
-    );
+    return handleError(error, `PATCH /api/users/${(await params).id}`);
   }
 }
 
@@ -222,7 +188,7 @@ export async function PATCH(
  * Delete a user
  */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -230,25 +196,23 @@ export async function DELETE(
     const userId = parseInt(id);
 
     if (isNaN(userId)) {
-      return sendError(
-        "Invalid user ID format",
-        ERROR_CODES.INVALID_FORMAT,
-        400
-      );
+      throw new ValidationError("Invalid user ID format");
     }
 
     // TODO: Delete user from database
     // const deletedUser = await db.user.delete({ where: { id: userId } });
     const deletedUser = { id: userId, name: "", email: "" };
 
-    return sendSuccess(deletedUser, "User deleted successfully", 200);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return sendError(
-      "Failed to delete user",
-      ERROR_CODES.DATABASE_FAILURE,
-      500,
-      errorMessage
+    logger.info('User deleted', { userId });
+    return NextResponse.json(
+      {
+        success: true,
+        data: deletedUser,
+        message: "User deleted successfully",
+      },
+      { status: 200 }
     );
+  } catch (error: unknown) {
+    return handleError(error, `DELETE /api/users/${(await params).id}`);
   }
 }
