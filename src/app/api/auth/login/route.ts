@@ -1,11 +1,11 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import { sendSuccess, sendError } from "@/lib/responseHandler";
-import { ERROR_CODES } from "@/lib/errorCodes";
 import { loginSchema } from "@/lib/schemas/authSchema";
 import { ZodError } from "zod";
 import { findUserByEmail } from "@/lib/db";
 import { signToken } from "@/lib/auth";
+import { handleError, NotFoundError, AuthenticationError, ValidationError } from "@/lib/errorHandler";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,30 +14,32 @@ export async function POST(request: NextRequest) {
 
     const user = findUserByEmail(data.email);
     if (!user) {
-      return sendError("User not found", ERROR_CODES.NOT_FOUND, 404);
+      throw new NotFoundError("User not found");
     }
 
     const isValid = await bcrypt.compare(data.password, user.passwordHash);
     if (!isValid) {
-      return sendError("Invalid credentials", ERROR_CODES.UNAUTHORIZED, 401);
+      throw new AuthenticationError("Invalid credentials");
     }
 
     const token = signToken({ id: user.id, email: user.email, role: user.role });
 
-    return sendSuccess(
-      { token },
-      "Login successful",
-      200
+    logger.info('User logged in successfully', { email: user.email, userId: user.id });
+    return NextResponse.json(
+      {
+        success: true,
+        data: { token },
+        message: "Login successful",
+      },
+      { status: 200 }
     );
   } catch (error) {
     if (error instanceof ZodError) {
-      return sendError(
-        "Validation failed",
-        ERROR_CODES.VALIDATION_ERROR,
-        400,
-        error.issues.map((e) => ({ field: e.path.join("."), message: e.message }))
+      const validationError = new ValidationError(
+        'Validation failed: ' + error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
       );
+      return handleError(validationError, 'POST /api/auth/login');
     }
-    return sendError("Login failed", ERROR_CODES.INTERNAL_ERROR, 500, error);
+    return handleError(error, 'POST /api/auth/login');
   }
 }
