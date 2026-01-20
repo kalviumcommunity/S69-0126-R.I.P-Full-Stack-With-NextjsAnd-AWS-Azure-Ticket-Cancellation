@@ -1,10 +1,10 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import { sendSuccess, sendError } from "@/lib/responseHandler";
-import { ERROR_CODES } from "@/lib/errorCodes";
 import { signupSchema } from "@/lib/schemas/authSchema";
 import { ZodError } from "zod";
 import { createUser, findUserByEmail, toPublicUser } from "@/lib/db";
+import { handleError, ConflictError, ValidationError } from "@/lib/errorHandler";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,11 +13,7 @@ export async function POST(request: NextRequest) {
 
     const existing = findUserByEmail(data.email);
     if (existing) {
-      return sendError(
-        "User already exists",
-        ERROR_CODES.DUPLICATE_RESOURCE,
-        409
-      );
+      throw new ConflictError("User already exists");
     }
 
     const passwordHash = await bcrypt.hash(data.password, 10);
@@ -29,17 +25,23 @@ export async function POST(request: NextRequest) {
       age: data.age,
     });
 
-    return sendSuccess(toPublicUser(created), "Signup successful", 201);
+    logger.info('User signed up successfully', { email: created.email, userId: created.id });
+    return NextResponse.json(
+      {
+        success: true,
+        data: toPublicUser(created),
+        message: "Signup successful",
+      },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof ZodError) {
-      return sendError(
-        "Validation failed",
-        ERROR_CODES.VALIDATION_ERROR,
-        400,
-        error.issues.map((e) => ({ field: e.path.join("."), message: e.message }))
+      const validationError = new ValidationError(
+        'Validation failed: ' + error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
       );
+      return handleError(validationError, 'POST /api/auth/signup');
     }
 
-    return sendError("Signup failed", ERROR_CODES.INTERNAL_ERROR, 500, error);
+    return handleError(error, 'POST /api/auth/signup');
   }
 }
