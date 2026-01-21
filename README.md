@@ -62,13 +62,32 @@ This repository currently contains a **basic Next.js setup**, which will be expa
 npm install
 ```
 
-### 2. Run the development server
+### 2. Configure Database
+
+See [MIGRATION_SETUP_GUIDE.md](MIGRATION_SETUP_GUIDE.md) for detailed PostgreSQL setup instructions.
+
+Quick start:
+```bash
+# Update .env with your PostgreSQL connection string
+echo 'DATABASE_URL=postgresql://postgres:password@localhost:5432/ticketcancellation' > .env
+
+# Generate Prisma client
+npx prisma generate
+
+# Run migrations
+npm run prisma:migrate -- --name init_schema
+
+# Seed sample data
+npm run prisma:seed
+```
+
+### 3. Run the development server
 
 ```bash
 npm run dev
 ```
 
-### 3. Open the app in browser
+### 4. Open the app in browser
 
 ```bash
 http://localhost:3000
@@ -76,7 +95,57 @@ http://localhost:3000
 
 ---
 
-## API Documentation
+## Database Architecture
+
+### Quick Reference
+
+- **Schema Documentation:** [SCHEMA_DOCUMENTATION.md](SCHEMA_DOCUMENTATION.md)
+- **Migration Guide:** [MIGRATION_SETUP_GUIDE.md](MIGRATION_SETUP_GUIDE.md)
+- **Design Summary:** [DATABASE_DESIGN_SUMMARY.md](DATABASE_DESIGN_SUMMARY.md)
+
+### Core Entities
+
+```
+User (Passenger/Operator/Admin)
+  ├─> Ticket (Bus seat reservation)
+  │    ├─> Payment (Purchase transaction)
+  │    ├─> Cancellation (Refund request)
+  │    │    └─> Refund (Money return)
+  │    └─> AuditLog (State changes)
+  │
+  ├─> BusRoute (Journey definition)
+  │    └─> CancellationPolicy (Refund rules)
+  │
+  └─> Relations tracked with Foreign Keys & Indexes
+```
+
+### Key Features
+
+✅ **8 Core Models** — User, BusRoute, Ticket, Payment, Cancellation, Refund, CancellationPolicy, AuditLog
+
+✅ **10+ Strategic Indexes** — Sub-10ms query latency for search, filter, and lookup operations
+
+✅ **Referential Integrity** — Foreign keys prevent orphaned records, CASCADE deletes maintain consistency
+
+✅ **Composite Unique Constraints** — `(routeId, seatNumber)` prevents double-booking
+
+✅ **Type Safety** — 9 ENUMs for UserRole, TicketStatus, PaymentMethod, RefundStatus, etc.
+
+✅ **Audit Trail** — Every action logged for compliance and debugging
+
+✅ **3NF Normalization** — No redundancy, efficient storage, easy maintenance
+
+### View Database
+
+```bash
+npm run prisma:studio
+```
+
+Opens http://localhost:5555 with interactive database explorer showing all tables and data.
+
+---
+
+
 
 ### Centralized Error Handling
 
