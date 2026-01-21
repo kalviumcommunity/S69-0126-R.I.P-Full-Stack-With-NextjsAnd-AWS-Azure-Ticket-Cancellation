@@ -3329,3 +3329,401 @@ const cacheStats = {
 4. 🔒 **Compression**: Implement compression for large cached objects
 5. 🌍 **Distributed Caching**: Setup Redis Cluster for multi-region deployments
 6. ⚡ **Query Optimization**: Combine with database query caching for maximum performance
+
+---
+
+# JWT Authentication with Access & Refresh Tokens
+
+## Overview
+
+This project implements **JWT (JSON Web Token) authentication** with a **two-token system**:
+
+- **Access Token**: Short-lived (15 minutes), used for API requests
+- **Refresh Token**: Long-lived (7 days), used to obtain new access tokens
+
+This architecture balances **security** (short token lifespan) with **user experience** (seamless re-authentication without password re-entry).
+
+---
+
+## JWT Structure & Concepts
+
+### What is a JWT?
+
+A JWT is a stateless authentication token with three components:
+
+```
+header.payload.signature
+```
+
+#### 1. Header
+
+Contains metadata about the token:
+
+```json
+{
+  "alg": "HS256",        // Algorithm used to sign the token
+  "typ": "JWT"           // Token type
+}
+```
+
+#### 2. Payload (Claims)
+
+Contains user data and token metadata:
+
+```json
+{
+  "id": 12345,           // User ID (subject)
+  "email": "user@example.com",  // User email
+  "role": "admin",       // User role (custom claim)
+  "iat": 1715120000,     // Issued at (timestamp)
+  "exp": 1715123600      // Expiration time (issued_at + 1 hour)
+}
+```
+
+#### 3. Signature
+
+Ensures token hasn't been tampered with:
+
+```
+HMACSHA256(
+  base64UrlEncode(header) + "." + base64UrlEncode(payload),
+  secret_key
+)
+```
+
+The signature is verified on every request. If the payload or algorithm changes, the signature becomes invalid.
+
+### Important Security Note
+
+⚠️ **JWTs are ENCODED, not ENCRYPTED**
+
+- Anyone can decode the payload (it's just Base64)
+- The payload is visible to anyone, including the client
+- The signature ensures the payload hasn't been tampered with
+- **Never store passwords or sensitive data in the JWT payload**
+
+---
+
+## Access Token vs Refresh Token
+
+### Access Token
+
+**Purpose**: Prove identity for API requests
+
+| Property | Value |
+|----------|-------|
+| **Lifespan** | 15 minutes |
+| **Use** | Every API request (Authorization header or cookie) |
+| **Storage** | HTTP-only cookie + response body |
+| **Risk** | If compromised, attacker has 15-minute window |
+| **Regeneration** | Automatically via refresh token |
+
+### Refresh Token
+
+**Purpose**: Obtain new access tokens without user re-authentication
+
+| Property | Value |
+|----------|-------|
+| **Lifespan** | 7 days |
+| **Use** | Only `/api/auth/refresh` endpoint |
+| **Storage** | HTTP-only cookie only (never in response body) |
+| **Risk** | If compromised, attacker has 7-day window |
+| **Regeneration** | Only via login/signup |
+
+---
+
+## Token Storage Strategy
+
+### Recommended: HTTP-Only Cookies ✅
+
+```typescript
+response.cookies.set("accessToken", accessToken, {
+  httpOnly: true,      // Prevent XSS access
+  secure: true,        // HTTPS only in production
+  sameSite: "strict",  // Prevent CSRF attacks
+  maxAge: 15 * 60,     // 15 minutes
+  path: "/",
+});
+```
+
+**Benefits:**
+- ✅ Protected from XSS attacks (JavaScript can't access)
+- ✅ Protected from CSRF attacks (SameSite restriction)
+- ✅ Automatically sent with every request
+- ✅ Secure in transit (HTTPS only)
+- ✅ Secure at rest (httpOnly flag)
+
+### Not Recommended: localStorage/sessionStorage ❌
+
+```javascript
+// DON'T DO THIS - vulnerable to XSS
+localStorage.setItem('accessToken', token);
+```
+
+**Why it's risky:**
+- ❌ JavaScript can access and steal via XSS attacks
+- ❌ Persists across tabs/windows
+- ❌ Not automatically cleared on logout
+- ❌ Vulnerable to injection attacks
+
+---
+
+## Token Lifecycle Flow
+
+```
+Login → Issue Access Token (15m) + Refresh Token (7d)
+  ↓
+Set both as HTTP-only cookies
+  ↓
+Client makes API request (with access token)
+  ↓
+Access Token Valid? → Yes → Access Resource
+  ↓
+After 15 minutes → Access Token Expires
+  ↓
+Client calls /api/auth/refresh
+  ↓
+Issue New Access Token (15m)
+  ↓
+Client uses new token for next request
+  ↓
+After 7 days → Refresh Token Expires
+  ↓
+User must login again
+```
+
+---
+
+## Security Threats & Mitigation
+
+### 1. Cross-Site Scripting (XSS) ❌ → ✅
+
+**Threat**: Malicious scripts steal tokens from localStorage
+
+**Mitigation:**
+- ✅ Use HTTP-only cookies (JavaScript can't access)
+- ✅ Sanitize all user inputs
+- ✅ Use Content Security Policy (CSP) headers
+
+**Implementation:**
+```typescript
+// Secure HTTP-only cookie
+response.cookies.set("accessToken", token, {
+  httpOnly: true,  // Key: prevents XSS access
+  secure: true,
+  sameSite: "strict",
+});
+```
+
+### 2. Cross-Site Request Forgery (CSRF) ❌ → ✅
+
+**Threat**: Attacker tricks user into making unwanted authenticated requests
+
+**Example Attack:**
+```html
+<!-- Attacker's site -->
+<img src="https://yourapp.com/api/admin/delete?userId=123" />
+<!-- Browser includes your cookies in request -->
+```
+
+**Mitigation:**
+- ✅ Use `SameSite=Strict` cookies (only sent to same origin)
+- ✅ Validate `Origin` and `Referer` headers
+- ✅ Require POST instead of GET for sensitive operations
+
+**Implementation:**
+```typescript
+response.cookies.set("accessToken", token, {
+  sameSite: "strict",  // Key: CSRF protection
+  secure: true,
+});
+```
+
+### 3. Token Replay Attack ❌ → ✅
+
+**Threat**: Attacker reuses stolen token hours later
+
+**Mitigation:**
+- ✅ Short token lifespan (15 minutes for access tokens)
+- ✅ HTTPS only (prevent network interception)
+- ✅ Token rotation on refresh
+- ✅ Implement token blacklist (Redis)
+
+### 4. Algorithm Confusion ❌ → ✅
+
+**Threat**: Attacker changes token algorithm to bypass verification
+
+**Mitigation:**
+- ✅ Verify algorithm matches expected value
+- ✅ Never allow "none" algorithm
+- ✅ Use explicit algorithm in verification
+
+**Implementation:**
+```typescript
+jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+```
+
+### 5. Insecure Storage ❌ → ✅
+
+**Threat**: Tokens stored in plain text or weak locations
+
+**Mitigation:**
+- ✅ Use HTTP-only cookies with Secure flag
+- ✅ HTTPS only in production
+- ✅ Never commit tokens to version control
+
+---
+
+## Implementation Summary
+
+### Key Files Updated
+
+| File | Change |
+|------|--------|
+| `src/lib/auth.ts` | Added `signAccessToken()` and `signRefreshToken()` functions |
+| `src/app/api/auth/login/route.ts` | Issues both tokens as HTTP-only cookies |
+| `src/app/api/auth/signup/route.ts` | Issues both tokens as HTTP-only cookies |
+| `src/app/api/auth/refresh/route.ts` | **NEW** - Refreshes access token |
+| `src/app/api/auth/logout/route.ts` | **NEW** - Clears cookies |
+| `src/middleware.ts` | Updated to support cookie-based auth + Bearer tokens |
+
+### Token Configuration
+
+```typescript
+// Access Token: 15 minutes
+signAccessToken(payload)  // HS256 algorithm, 15m expiry
+
+// Refresh Token: 7 days
+signRefreshToken(payload) // HS256 algorithm, 7d expiry
+
+// Cookie Settings
+httpOnly: true           // Prevent XSS
+secure: production only  // HTTPS requirement
+sameSite: "strict"       // Prevent CSRF
+```
+
+---
+
+## Testing the JWT System
+
+### Test 1: Complete Authentication Flow
+
+```bash
+# 1. Signup
+curl -X POST http://localhost:3000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test User",
+    "email": "test@example.com",
+    "password": "password123"
+  }'
+
+# 2. Access protected endpoint
+curl -X GET http://localhost:3000/api/users
+
+# 3. Logout
+curl -X POST http://localhost:3000/api/auth/logout
+
+# 4. Verify token is cleared
+curl -X GET http://localhost:3000/api/users
+# Expected: 401 Unauthorized
+```
+
+### Test 2: Token Refresh Flow
+
+```bash
+# 1. Login
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123"}'
+
+# 2. Wait 15+ minutes (or modify token to be expired)
+
+# 3. Call refresh endpoint
+curl -X POST http://localhost:3000/api/auth/refresh
+
+# 4. Use new access token
+curl -X GET http://localhost:3000/api/users
+# Expected: 200 OK with user data
+```
+
+### Test 3: Security Validation
+
+```bash
+# Test: No token
+curl -X GET http://localhost:3000/api/users
+# Expected: 401 Unauthorized - "Token missing"
+
+# Test: Invalid token
+curl -X GET http://localhost:3000/api/users \
+  -H "Authorization: Bearer invalid-token"
+# Expected: 403 Forbidden - "Invalid token"
+
+# Test: Expired token (after 15 minutes)
+curl -X GET http://localhost:3000/api/users \
+  -H "Authorization: Bearer <EXPIRED_TOKEN>"
+# Expected: 401 Unauthorized - "TOKEN_EXPIRED"
+```
+
+---
+
+## API Endpoints
+
+### Authentication Endpoints
+
+| Endpoint | Method | Purpose | Response |
+|----------|--------|---------|----------|
+| `/api/auth/signup` | POST | Register + issue tokens | Access & Refresh tokens |
+| `/api/auth/login` | POST | Authenticate + issue tokens | Access & Refresh tokens |
+| `/api/auth/refresh` | POST | Get new access token | New access token |
+| `/api/auth/logout` | POST | Clear tokens | Confirmation |
+
+### Protected Endpoints (Require Valid Token)
+
+| Endpoint | Method | Requirements |
+|----------|--------|--------------|
+| `/api/users` | GET | Valid access token |
+| `/api/users/:id` | GET | Valid access token |
+| `/api/admin` | GET | Valid access token + admin role |
+
+---
+
+## Summary of Security Implementations
+
+| Security Feature | Status | Details |
+|-----------------|--------|---------|
+| Short Access Token TTL | ✅ | 15 minutes |
+| Long Refresh Token TTL | ✅ | 7 days |
+| HTTP-Only Cookies | ✅ | XSS protection |
+| Secure Flag | ✅ | HTTPS only in production |
+| SameSite=Strict | ✅ | CSRF protection |
+| Token Validation Middleware | ✅ | Every protected request |
+| Role-Based Access Control | ✅ | Admin vs user |
+| Clear Error Codes | ✅ | TOKEN_EXPIRED vs generic |
+| Automatic Token Refresh | ✅ | Client-side support ready |
+| Logout with Cookie Clearing | ✅ | Clean session termination |
+
+---
+
+## Key Takeaways
+
+✅ **Two-token system** balances security with user experience  
+✅ **HTTP-only cookies** protect tokens from XSS attacks  
+✅ **Short access token lifespan** (15m) limits damage from theft  
+✅ **Long refresh token** (7d) enables seamless re-authentication  
+✅ **Middleware validation** ensures all protected routes verify tokens  
+✅ **Clear error codes** help clients handle token expiration gracefully  
+✅ **SameSite & Secure flags** prevent CSRF and network interception  
+✅ **Encryption not needed** - JWT signature provides integrity verification  
+
+---
+
+## Next Steps for Enhancement
+
+1. 🔒 **Token Blacklist**: Implement Redis-based token revocation for logout
+2. 📱 **Multi-Device Support**: Track tokens per device for better management
+3. 🔐 **MFA Integration**: Add Two-Factor Authentication for enhanced security
+4. 📊 **Token Analytics**: Monitor token usage patterns and suspicious activity
+5. 🔄 **Token Rotation Policy**: Implement mandatory refresh intervals
+6. 📧 **Suspicious Activity Alerts**: Email on unusual login patterns
+7. 🌍 **CORS Security**: Configure proper CORS policies per environment
