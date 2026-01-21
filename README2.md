@@ -217,3 +217,68 @@ The problem is especially impactful in public transport systems where high passe
 | Complex refund rules     | Delayed backend    | Start with simplified rule engine |
 | Frontend blocked by APIs | Integration delays | Use mock responses                |
 | Time constraints         | Feature overflow   | Strict MVP scope control          |
+
+---
+
+## 12. Team Branching & PR Workflow
+
+This project follows a common, role-agnostic GitHub workflow to ensure smooth collaboration between frontend, backend, and database contributors.
+
+### Branch Naming Conventions
+
+All work must be done on feature branches. Direct commits to `main` are restricted.
+
+**Branch formats:**
+- feature/<feature-name>
+- fix/<bug-name>
+- chore/<maintenance-task>
+- docs/<documentation-update>
+
+**Examples:**
+- feature/ui-cancellation-page
+- feature/refund-policy-api
+- fix/payment-calculation-bug
+- chore/update-eslint-config
+- docs/update-readme
+
+This convention helps track work clearly and avoid conflicts across roles.
+
+---
+
+### Pull Request (PR) Workflow
+
+- Every change must go through a Pull Request
+- PRs must clearly describe *what* and *why*
+- At least one team member must review before merging
+- All checks (lint/build) should pass before merge
+- PRs should be small and focused
+
+---
+
+### Code Review Checklist
+
+Reviewers should ensure:
+- Code follows agreed structure and naming conventions
+- Functionality is verified locally
+- No unintended files or modules are modified
+- No console errors or warnings
+- Linting and formatting checks pass
+- No sensitive data or secrets are exposed
+
+---
+
+### Branch Protection Rules
+
+The `main` branch is protected to ensure stability:
+- Direct pushes to `main` are disabled
+- Pull request reviews are required before merging
+- Branch must be up to date before merge
+- Automated checks must pass
+
+(Branch protection rules are configured by the repository owner.)
+
+---
+
+### Reflection
+
+A shared branching and PR workflow improves transparency, accountability, and trust within the team. By enforcing reviews and protected branches, the team ensures that no changes are merged silently, aligning directly with the project’s goal of creating an open and transparent system for public transport ticket cancellations and refunds.
