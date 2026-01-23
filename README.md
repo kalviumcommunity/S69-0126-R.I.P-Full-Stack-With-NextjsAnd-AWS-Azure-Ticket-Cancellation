@@ -95,57 +95,20 @@ http://localhost:3000
 
 ---
 
-## Database Architecture
+## Input Sanitization & OWASP Hardening
 
-### Quick Reference
-
-- **Schema Documentation:** [SCHEMA_DOCUMENTATION.md](SCHEMA_DOCUMENTATION.md)
-- **Migration Guide:** [MIGRATION_SETUP_GUIDE.md](MIGRATION_SETUP_GUIDE.md)
-- **Design Summary:** [DATABASE_DESIGN_SUMMARY.md](DATABASE_DESIGN_SUMMARY.md)
-
-### Core Entities
-
-```
-User (Passenger/Operator/Admin)
-  ├─> Ticket (Bus seat reservation)
-  │    ├─> Payment (Purchase transaction)
-  │    ├─> Cancellation (Refund request)
-  │    │    └─> Refund (Money return)
-  │    └─> AuditLog (State changes)
-  │
-  ├─> BusRoute (Journey definition)
-  │    └─> CancellationPolicy (Refund rules)
-  │
-  └─> Relations tracked with Foreign Keys & Indexes
-```
-
-### Key Features
-
-✅ **8 Core Models** — User, BusRoute, Ticket, Payment, Cancellation, Refund, CancellationPolicy, AuditLog
-
-✅ **10+ Strategic Indexes** — Sub-10ms query latency for search, filter, and lookup operations
-
-✅ **Referential Integrity** — Foreign keys prevent orphaned records, CASCADE deletes maintain consistency
-
-✅ **Composite Unique Constraints** — `(routeId, seatNumber)` prevents double-booking
-
-✅ **Type Safety** — 9 ENUMs for UserRole, TicketStatus, PaymentMethod, RefundStatus, etc.
-
-✅ **Audit Trail** — Every action logged for compliance and debugging
-
-✅ **3NF Normalization** — No redundancy, efficient storage, easy maintenance
-
-### View Database
-
-```bash
-npm run prisma:studio
-```
-
-Opens http://localhost:5555 with interactive database explorer showing all tables and data.
+- **Utilities**: All request payloads pass through `sanitize-html` via shared helpers (`src/lib/sanitizer.ts`), stripping tags/attributes before validation. Authentication routes skip password mutation but still validate length/format; user schemas sanitize names/emails and force lowercase emails.
+- **Where enforced**: Login and signup endpoints sanitize bodies before Zod validation; user collection/detail routes sanitize headers, params, and bodies before caching/logging. This prevents reflected/stored XSS vectors from reaching logs, cache, or storage.
+- **Before/After**:
+  - Input: `<script>alert("Hacked!")</script> Jane` → Stored/returned: `alert("Hacked!") Jane`
+  - Input: `" OR 1=1 --` for names/emails → Stored/returned: `" OR 1=1 --` (safe because HTML is stripped and future DB calls must stay parameterized)
+- **Rendering safety**: React already escapes strings; avoid `dangerouslySetInnerHTML`. If unavoidable, re-sanitize and encode before rendering.
+- **Ongoing SQLi defense**: Current in-memory store will be replaced with parameterized queries only—never string interpolation for SQL. Treat all headers, query params, cookies, and JSON as untrusted.
+- **Future hardening**: Add Content Security Policy, rate limiting, and periodic security reviews; keep validation schemas close to handlers and extend sanitizer coverage to any new user-provided fields.
 
 ---
 
-
+## API Documentation
 
 ### Centralized Error Handling
 

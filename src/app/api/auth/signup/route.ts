@@ -4,6 +4,7 @@ import { signupSchema } from "@/lib/schemas/authSchema";
 import { ZodError } from "zod";
 import { createUser, findUserByEmail, toPublicUser } from "@/lib/db";
 import { signAccessToken, signRefreshToken } from "@/lib/auth";
+import { sanitizePayload } from "@/lib/sanitizer";
 import {
   handleError,
   ConflictError,
@@ -13,7 +14,9 @@ import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = sanitizePayload(await request.json(), {
+      skipKeys: ["password"],
+    });
     const data = signupSchema.parse(body);
 
     const existing = findUserByEmail(data.email);
