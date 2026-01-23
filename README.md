@@ -62,13 +62,32 @@ This repository currently contains a **basic Next.js setup**, which will be expa
 npm install
 ```
 
-### 2. Run the development server
+### 2. Configure Database
+
+See [MIGRATION_SETUP_GUIDE.md](MIGRATION_SETUP_GUIDE.md) for detailed PostgreSQL setup instructions.
+
+Quick start:
+```bash
+# Update .env with your PostgreSQL connection string
+echo 'DATABASE_URL=postgresql://postgres:password@localhost:5432/ticketcancellation' > .env
+
+# Generate Prisma client
+npx prisma generate
+
+# Run migrations
+npm run prisma:migrate -- --name init_schema
+
+# Seed sample data
+npm run prisma:seed
+```
+
+### 3. Run the development server
 
 ```bash
 npm run dev
 ```
 
-### 3. Open the app in browser
+### 4. Open the app in browser
 
 ```bash
 http://localhost:3000

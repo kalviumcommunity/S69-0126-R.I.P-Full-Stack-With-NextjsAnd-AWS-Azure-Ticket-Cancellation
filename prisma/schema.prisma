@@ -1,0 +1,231 @@
+// Ticket Cancellation System - Prisma Schema
+// Designed for transparent bus ticket cancellation and refund tracking
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  PASSENGER
+  OPERATOR
+  ADMIN
+}
+
+enum TicketStatus {
+  ACTIVE
+  CANCELLED
+  REFUNDED
+  EXPIRED
+}
+
+enum CancellationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUND_INITIATED
+  REFUND_COMPLETED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  UPI
+  NET_BANKING
+  WALLET
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  COMPLETED
+  FAILED
+}
+
+// ==================== MODELS ====================
+
+/// Users represent passengers, operators, and administrators
+model User {
+  id                Int               @id @default(autoincrement())
+  email             String            @unique
+  name              String
+  phone             String            @unique
+  password          String
+  role              UserRole          @default(PASSENGER)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  tickets           Ticket[]
+  cancellations     Cancellation[]
+  refunds           Refund[]
+  payments          Payment[]
+  operatedRoutes    BusRoute[]        @relation("OperatorRoutes")
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+}
+
+/// Bus routes represent the journey from source to destination
+model BusRoute {
+  id                Int               @id @default(autoincrement())
+  operatorId        Int
+  source            String
+  destination       String
+  departureTime     DateTime
+  arrivalTime       DateTime
+  totalSeats        Int
+  availableSeats    Int
+  basePrice         Float
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  operator          User              @relation("OperatorRoutes", fields: [operatorId], references: [id], onDelete: Cascade)
+  tickets           Ticket[]
+
+  @@index([operatorId])
+  @@index([departureTime])
+  @@index([source])
+  @@index([destination])
+}
+
+/// Tickets represent individual seat reservations
+model Ticket {
+  id                Int               @id @default(autoincrement())
+  ticketNumber      String            @unique
+  userId            Int
+  routeId           Int
+  seatNumber        String
+  status            TicketStatus      @default(ACTIVE)
+  purchasePrice     Float
+  purchasedAt       DateTime          @default(now())
+  travelDate        DateTime
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  route             BusRoute          @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  cancellation      Cancellation?
+  payment           Payment?
+  refund            Refund?
+
+  @@unique([routeId, seatNumber])
+  @@index([userId])
+  @@index([routeId])
+  @@index([ticketNumber])
+  @@index([status])
+  @@index([travelDate])
+}
+
+/// Cancellation policies define refund rules
+model CancellationPolicy {
+  id                Int               @id @default(autoincrement())
+  name              String
+  daysBeforeDeparture Int             // e.g., 7 days before departure
+  refundPercentage  Float             // e.g., 90 (means 90%)
+  cancellationFee   Float             @default(0)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([daysBeforeDeparture])
+}
+
+/// Cancellations track ticket cancellation requests
+model Cancellation {
+  id                Int               @id @default(autoincrement())
+  ticketId          Int               @unique
+  userId            Int
+  cancellationReason String
+  status            CancellationStatus @default(PENDING)
+  requestedAt       DateTime          @default(now())
+  approvedAt        DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  ticket            Ticket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refund            Refund?
+
+  @@index([userId])
+  @@index([ticketId])
+  @@index([status])
+  @@index([requestedAt])
+}
+
+/// Payments track ticket purchase payments
+model Payment {
+  id                Int               @id @default(autoincrement())
+  ticketId          Int               @unique
+  userId            Int
+  amount            Float
+  method            PaymentMethod
+  transactionId     String            @unique
+  status            String            @default("COMPLETED")
+  paidAt            DateTime          @default(now())
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  ticket            Ticket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([ticketId])
+  @@index([transactionId])
+  @@index([paidAt])
+}
+
+/// Refunds track ticket refund processing
+model Refund {
+  id                Int               @id @default(autoincrement())
+  ticketId          Int               @unique
+  userId            Int
+  cancellationId    Int               @unique
+  refundAmount      Float
+  refundPercentage  Float             // e.g., 85 (means 85% of purchase price)
+  cancellationFee   Float             @default(0)
+  status            RefundStatus      @default(PENDING)
+  initiatedAt       DateTime          @default(now())
+  completedAt       DateTime?
+  bankAccount       String?           // Masked for security
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  ticket            Ticket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cancellation      Cancellation      @relation(fields: [cancellationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([ticketId])
+  @@index([cancellationId])
+  @@index([status])
+  @@index([initiatedAt])
+}
+
+/// Audit logs track all significant state changes
+model AuditLog {
+  id                Int               @id @default(autoincrement())
+  entityType        String            // e.g., "Ticket", "Cancellation", "Refund"
+  entityId          Int
+  action            String            // e.g., "CREATED", "UPDATED", "CANCELLED"
+  changedFields     String?           // JSON of what changed
+  userId            Int?
+  createdAt         DateTime          @default(now())
+
+  @@index([entityType])
+  @@index([entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
