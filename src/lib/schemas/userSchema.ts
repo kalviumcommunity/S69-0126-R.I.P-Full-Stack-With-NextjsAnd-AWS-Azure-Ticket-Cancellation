@@ -1,17 +1,28 @@
 import { z } from "zod";
+import { sanitizeInput } from "@/lib/sanitizer";
+
+const sanitizedString = <T extends z.ZodString>(schema: T) =>
+  z.preprocess(
+    (value) => (typeof value === "string" ? sanitizeInput(value) : value),
+    schema
+  );
 
 /**
  * User Schema for POST and PUT requests
  * Validates complete user data with all required fields
  */
 export const userSchema = z.object({
-  name: z.string()
-    .min(2, "Name must be at least 2 characters long")
-    .max(100, "Name must not exceed 100 characters"),
-  email: z.string()
-    .email("Invalid email address")
-    .toLowerCase(),
-  age: z.number()
+  name: sanitizedString(
+    z
+      .string()
+      .min(2, "Name must be at least 2 characters long")
+      .max(100, "Name must not exceed 100 characters")
+  ),
+  email: sanitizedString(
+    z.string().email("Invalid email address").toLowerCase()
+  ),
+  age: z
+    .number()
     .int("Age must be a whole number")
     .min(18, "User must be at least 18 years old")
     .max(120, "Age must be realistic")

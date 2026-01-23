@@ -9,6 +9,7 @@ import {
 } from "@/lib/errorHandler";
 import { logger } from "@/lib/logger";
 import redis from "@/lib/redis";
+import { sanitizeInput, sanitizePayload } from "@/lib/sanitizer";
 
 // TODO: Import your database client here
 // import { db } from '@/lib/db';
@@ -28,8 +29,11 @@ const CACHE_TTL_SECONDS = 60; // 1 minute TTL
  */
 export async function GET(request: NextRequest) {
   try {
-    const userEmail = request.headers.get("x-user-email");
-    const userRole = request.headers.get("x-user-role");
+    const userEmailHeader = request.headers.get("x-user-email");
+    const userRoleHeader = request.headers.get("x-user-role");
+
+    const userEmail = userEmailHeader ? sanitizeInput(userEmailHeader) : "";
+    const userRole = userRoleHeader ? sanitizeInput(userRoleHeader) : "";
 
     if (!userEmail) {
       throw new AuthenticationError("Unauthorized access");
@@ -97,7 +101,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = sanitizePayload(await request.json());
 
     // Validate request body with Zod
     const validatedData = userSchema.parse(body);

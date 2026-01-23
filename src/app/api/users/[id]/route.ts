@@ -8,6 +8,7 @@ import {
 } from "@/lib/errorHandler";
 import { logger } from "@/lib/logger";
 import redis from "@/lib/redis";
+import { sanitizeInput, sanitizePayload } from "@/lib/sanitizer";
 
 // TODO: Import your database client here
 // import { db } from '@/lib/db';
@@ -30,7 +31,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const userId = parseInt(id);
+    const userId = parseInt(sanitizeInput(id));
 
     if (isNaN(userId)) {
       throw new ValidationError("Invalid user ID format");
@@ -95,8 +96,8 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const userId = parseInt(id);
-    const body = await _request.json();
+    const userId = parseInt(sanitizeInput(id));
+    const body = sanitizePayload(await _request.json());
 
     if (isNaN(userId)) {
       throw new ValidationError("Invalid user ID format");
@@ -178,8 +179,8 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const userId = parseInt(id);
-    const body = await _request.json();
+    const userId = parseInt(sanitizeInput(id));
+    const body = sanitizePayload(await _request.json());
 
     if (isNaN(userId)) {
       throw new ValidationError("Invalid user ID format");
@@ -271,7 +272,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const userId = parseInt(id);
+    const userId = parseInt(sanitizeInput(id));
 
     if (isNaN(userId)) {
       throw new ValidationError("Invalid user ID format");

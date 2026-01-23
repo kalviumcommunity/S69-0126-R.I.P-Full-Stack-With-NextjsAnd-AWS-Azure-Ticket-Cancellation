@@ -4,6 +4,7 @@ import { loginSchema } from "@/lib/schemas/authSchema";
 import { ZodError } from "zod";
 import { findUserByEmail } from "@/lib/db";
 import { signAccessToken, signRefreshToken } from "@/lib/auth";
+import { sanitizePayload } from "@/lib/sanitizer";
 import {
   handleError,
   NotFoundError,
@@ -14,7 +15,9 @@ import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = sanitizePayload(await request.json(), {
+      skipKeys: ["password"],
+    });
     const data = loginSchema.parse(body);
 
     const user = findUserByEmail(data.email);
