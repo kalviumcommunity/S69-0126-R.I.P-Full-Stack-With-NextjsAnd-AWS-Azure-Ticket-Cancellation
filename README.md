@@ -3690,3 +3690,163 @@ curl -X GET http://localhost:3000/api/users \
 5. 🔄 **Token Rotation Policy**: Implement mandatory refresh intervals
 6. 📧 **Suspicious Activity Alerts**: Email on unusual login patterns
 7. 🌍 **CORS Security**: Configure proper CORS policies per environment
+
+---
+
+## Role-Based Access Control (RBAC)
+
+This application implements a comprehensive **Role-Based Access Control (RBAC)** system to manage user permissions and secure access to sensitive operations. RBAC ensures that users can only perform actions appropriate to their assigned role.
+
+### 📖 Complete RBAC Documentation
+
+For detailed RBAC documentation, see:
+- **[RBAC_DOCUMENTATION.md](RBAC_DOCUMENTATION.md)** - Complete architecture, implementation details, and security considerations
+- **[RBAC_TESTING_GUIDE.md](RBAC_TESTING_GUIDE.md)** - Testing scenarios with curl commands and expected results
+
+### Quick Overview
+
+#### Roles and Permissions
+
+| Role | Description | Key Permissions |
+|------|-------------|-----------------|
+| **admin** | Full system access | Create/update/delete bus routes, view all bookings, manage all users |
+| **user** | Standard passenger | View buses, create own bookings, cancel own bookings |
+
+#### Permission Matrix
+
+| Resource | Admin | User |
+|----------|-------|------|
+| Create bus routes | ✅ | ❌ |
+| View all bookings | ✅ | ❌ |
+| View own bookings | ✅ | ✅ |
+| Cancel any booking | ✅ | ❌ |
+| Cancel own booking | ✅ | ✅ |
+
+### RBAC Architecture
+
+```
+Client Request
+     ↓
+JWT Verification (Middleware)
+     ↓
+Permission Check (RBAC Middleware)
+     ↓
+Route Handler (Protected Endpoint)
+     ↓
+Audit Logging
+     ↓
+Response
+```
+
+### Implementation Components
+
+1. **Role Configuration** ([src/config/roles.ts](src/config/roles.ts))
+   - Defines all roles and their permissions
+   - Permission constants and helper functions
+
+2. **RBAC Middleware** ([src/lib/rbac.ts](src/lib/rbac.ts))
+   - `requirePermission()` - Check specific permissions
+   - `requireRole()` - Check user roles
+   - `requireOwnership()` - Validate resource ownership
+
+3. **Protected API Routes**
+   - Admin routes: `/api/admin/bus-routes`, `/api/admin/bookings`
+   - User routes: `/api/bookings`, `/api/bookings/[id]`
+   - Public routes: `/api/bus-routes` (authenticated)
+
+4. **UI Components** ([src/components/rbac/RoleGuard.tsx](src/components/rbac/RoleGuard.tsx))
+   - `<AdminOnly>` - Admin-only content
+   - `<RoleGuard>` - Role-based rendering
+   - `<Authenticated>` - Logged-in users only
+
+### Quick Start Examples
+
+#### Admin: Create Bus Route
+
+```bash
+# Login as admin
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"admin123"}'
+
+# Create bus route
+curl -X POST http://localhost:3000/api/admin/bus-routes \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "New York",
+    "destination": "Boston",
+    "departureTime": "2026-02-01T10:00:00Z",
+    "arrivalTime": "2026-02-01T14:00:00Z",
+    "totalSeats": 40,
+    "basePrice": 45.99
+  }'
+```
+
+#### User: View and Cancel Own Booking
+
+```bash
+# Login as user
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"user123"}'
+
+# View own bookings
+curl -X GET http://localhost:3000/api/bookings \
+  -H "Authorization: Bearer <USER_TOKEN>"
+
+# Cancel own booking
+curl -X DELETE http://localhost:3000/api/bookings/5 \
+  -H "Authorization: Bearer <USER_TOKEN>"
+```
+
+### Security Features
+
+✅ **Defense in Depth** - Both client and server-side checks  
+✅ **Audit Logging** - All access decisions logged  
+✅ **Ownership Validation** - Users can only access their resources  
+✅ **Permission-Based** - Granular control over actions  
+✅ **Role Separation** - Clear boundaries between admin and user  
+
+### Audit Log Examples
+
+```
+[INFO] [RBAC] admin (admin@example.com) accessed bus routes with permission bus.create: ALLOWED
+[WARN] [RBAC] user (user@example.com) attempted to access all bookings: DENIED
+[INFO] [RBAC] user (user@example.com) accessed own booking 5: ALLOWED
+```
+
+### UI Role-Based Rendering
+
+```tsx
+import { AdminOnly, RoleGuard } from '@/components/rbac/RoleGuard';
+
+// Admin-only button
+<AdminOnly session={session}>
+  <button>Delete User</button>
+</AdminOnly>
+
+// Role-based conditional
+<RoleGuard allowedRoles={["admin", "user"]} session={session}>
+  <button>View Bookings</button>
+</RoleGuard>
+```
+
+### Testing RBAC
+
+Run the complete test suite:
+
+```bash
+# See RBAC_TESTING_GUIDE.md for detailed testing instructions
+
+# Quick test
+curl -X GET http://localhost:3000/api/admin/bookings \
+  -H "Authorization: Bearer <USER_TOKEN>"
+# Expected: 403 Forbidden (user cannot view all bookings)
+
+curl -X GET http://localhost:3000/api/admin/bookings \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+# Expected: 200 OK (admin can view all bookings)
+```
+
+---
