@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/indhuja/Desktop/ticket_cancel/S69-0126-R.I.P-Full-Stack-With-NextjsAnd-AWS-Azure-Ticket-Cancellation/src/app/not-found.tsx"],"sourcesContent":["// app/not-found.tsx\nimport Link from \"next/link\";\n\nexport default function NotFound() {\n  return (\n    <main className=\"flex flex-col items-center justify-center min-h-[70vh]\">\n      <h1 className=\"text-6xl font-bold text-red-500\">404</h1>\n      <p className=\"text-xl mt-4\">Oops! This page doesn't exist.</p>\n      <Link href=\"/\" className=\"mt-6 text-blue-600 underline\">Return Home</Link>\n    </main>\n  );\n}"],"names":[],"mappings":";;;;;AAAA,oBAAoB;AACpB;;;AAEe,SAAS;IACtB,qBACE,8OAAC;QAAK,WAAU;;0BACd,8OAAC;gBAAG,WAAU;0BAAkC;;;;;;0BAChD,8OAAC;gBAAE,WAAU;0BAAe;;;;;;0BAC5B,8OAAC,0LAAI;gBAAC,MAAK;gBAAI,WAAU;0BAA+B;;;;;;;;;;;;AAG9D"}}]
-}
