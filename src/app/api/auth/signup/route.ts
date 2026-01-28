@@ -33,14 +33,14 @@ export async function POST(request: NextRequest) {
       age: data.age,
     });
 
-    // Generate access and refresh tokens
-    const accessToken = signAccessToken({
+    // Generate access and refresh tokens using jose
+    const accessToken = await signAccessToken({
       id: created.id,
       email: created.email,
       role: created.role,
     });
 
-    const refreshToken = signRefreshToken({
+    const refreshToken = await signRefreshToken({
       id: created.id,
       email: created.email,
       role: created.role,

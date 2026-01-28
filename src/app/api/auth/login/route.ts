@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import { loginSchema } from "@/lib/schemas/authSchema";
 import { ZodError } from "zod";
-import { findUserByEmail } from "@/lib/db";
+import prisma from "@/lib/db";
 import { signAccessToken, signRefreshToken } from "@/lib/auth";
 import { sanitizePayload } from "@/lib/sanitizer";
 import {
@@ -20,27 +20,34 @@ export async function POST(request: NextRequest) {
     });
     const data = loginSchema.parse(body);
 
-    const user = findUserByEmail(data.email);
+    // Use Prisma to find user in database
+    const user = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
+
     if (!user) {
       throw new NotFoundError("User not found");
     }
 
-    const isValid = await bcrypt.compare(data.password, user.passwordHash);
+    const isValid = await bcrypt.compare(data.password, user.password);
     if (!isValid) {
       throw new AuthenticationError("Invalid credentials");
     }
 
-    // Generate access and refresh tokens
-    const accessToken = signAccessToken({
+    // Generate access and refresh tokens using jose
+    // Convert role to lowercase to match expected format
+    const role = user.role === "ADMIN" ? "admin" : "user";
+
+    const accessToken = await signAccessToken({
       id: user.id,
       email: user.email,
-      role: user.role,
+      role: role,
     });
 
-    const refreshToken = signRefreshToken({
+    const refreshToken = await signRefreshToken({
       id: user.id,
       email: user.email,
-      role: user.role,
+      role: role,
     });
 
     logger.info("User logged in successfully", {
@@ -62,7 +69,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 15 * 60, // 15 minutes in seconds
+      maxAge: 24 * 60 * 60, // 24 hours in seconds
       path: "/",
     });
 
@@ -70,7 +77,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
+      maxAge: 90 * 24 * 60 * 60, // 90 days in seconds
       path: "/",
     });
 
@@ -79,9 +86,9 @@ export async function POST(request: NextRequest) {
     if (error instanceof ZodError) {
       const validationError = new ValidationError(
         "Validation failed: " +
-          error.issues
-            .map((e) => `${e.path.join(".")}: ${e.message}`)
-            .join(", ")
+        error.issues
+          .map((e) => `${e.path.join(".")}: ${e.message}`)
+          .join(", ")
       );
       return handleError(validationError, "POST /api/auth/login");
     }

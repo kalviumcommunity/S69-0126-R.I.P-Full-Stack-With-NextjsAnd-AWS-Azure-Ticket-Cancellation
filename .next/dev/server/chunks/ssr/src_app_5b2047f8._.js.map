@@ -2,5 +2,5 @@
   "version": 3,
   "sources": [],
   "sections": [
-    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file:///Users/indhuja/Desktop/ticket_cancel/S69-0126-R.I.P-Full-Stack-With-NextjsAnd-AWS-Azure-Ticket-Cancellation/src/app/favicon.ico.mjs%20%28structured%20image%20object%29"],"sourcesContent":["import src from \"IMAGE\";\nexport default { src, width: 256, height: 256 }\n"],"names":[],"mappings":";;;;AAAA;;uCACe;IAAE,KAAA,0IAAG;IAAE,OAAO;IAAK,QAAQ;AAAI"}}]
+    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/preet_hpydpxe/Downloads/team-1/src/app/favicon.ico.mjs%20%28structured%20image%20object%29"],"sourcesContent":["import src from \"IMAGE\";\nexport default { src, width: 256, height: 256 }\n"],"names":[],"mappings":";;;;AAAA;;uCACe;IAAE,KAAA,0IAAG;IAAE,OAAO;IAAK,QAAQ;AAAI"}}]
 }
