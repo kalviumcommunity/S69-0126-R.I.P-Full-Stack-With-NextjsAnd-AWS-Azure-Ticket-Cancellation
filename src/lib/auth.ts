@@ -1,4 +1,4 @@
-import jwt, { JwtPayload } from "jsonwebtoken";
+import { SignJWT, jwtVerify } from "jose";
 
 export interface TokenPayload {
   id: number;
@@ -13,44 +13,49 @@ export const getJWTSecret = () => {
 };
 
 /**
- * Sign an access token (short-lived, 15 minutes)
+ * Sign an access token (24 hours)
  */
-export const signAccessToken = (
+export const signAccessToken = async (
   payload: Omit<TokenPayload, "iat" | "exp">
-): string => {
-  return jwt.sign(payload, getJWTSecret(), {
-    expiresIn: "15m",
-    algorithm: "HS256",
-  });
+): Promise<string> => {
+  return await new SignJWT(payload as Record<string, unknown>)
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("24h")
+    .sign(new TextEncoder().encode(getJWTSecret()));
 };
 
 /**
- * Sign a refresh token (long-lived, 7 days)
+ * Sign a refresh token (long-lived, 90 days)
  */
-export const signRefreshToken = (
+export const signRefreshToken = async (
   payload: Omit<TokenPayload, "iat" | "exp">
-): string => {
-  return jwt.sign(payload, getJWTSecret(), {
-    expiresIn: "7d",
-    algorithm: "HS256",
-  });
+): Promise<string> => {
+  return await new SignJWT(payload as Record<string, unknown>)
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("90d")
+    .sign(new TextEncoder().encode(getJWTSecret()));
 };
 
 /**
  * Legacy function for backward compatibility - signs 1h token
  */
-export const signToken = (payload: object, expiresIn = "1h"): string => {
-  return jwt.sign(payload, getJWTSecret(), { expiresIn });
+export const signToken = async (payload: object, expiresIn = "1h"): Promise<string> => {
+  return await new SignJWT(payload as Record<string, unknown>)
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime(expiresIn)
+    .sign(new TextEncoder().encode(getJWTSecret()));
 };
 
 /**
- * Verify and decode a token
+ * Verify and decode a token using jose (Edge-compatible)
  */
-export const verifyToken = (token: string): TokenPayload => {
+export const verifyToken = async (token: string): Promise<TokenPayload> => {
   try {
-    return jwt.verify(token, getJWTSecret()) as TokenPayload;
-  } catch (error) {
-    if (error instanceof jwt.TokenExpiredError) {
+    const JWT_SECRET = new TextEncoder().encode(getJWTSecret());
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload as unknown as TokenPayload;
+  } catch (error: any) {
+    if (error.code === "ERR_JWT_EXPIRED") {
       throw new Error("Token has expired");
     }
     throw new Error("Invalid token");
@@ -60,13 +65,13 @@ export const verifyToken = (token: string): TokenPayload => {
 /**
  * Verify access token specifically
  */
-export const verifyAccessToken = (token: string): TokenPayload => {
-  return verifyToken(token);
+export const verifyAccessToken = async (token: string): Promise<TokenPayload> => {
+  return await verifyToken(token);
 };
 
 /**
  * Verify refresh token specifically
  */
-export const verifyRefreshToken = (token: string): TokenPayload => {
-  return verifyToken(token);
+export const verifyRefreshToken = async (token: string): Promise<TokenPayload> => {
+  return await verifyToken(token);
 };
