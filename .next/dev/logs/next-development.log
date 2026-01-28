@@ -1,3 +1,11 @@
-[00:00:00.556] Server  LOG     ✓ Ready in 402ms
-[00:01:41.394] Server  LOG     ✓ Compiled in 50ms
-[00:04:04.187] Server  LOG     ✓ Compiled in 35ms
+[00:00:00.525] Server  LOG     ✓ Ready in 370ms
+[00:00:03.497] Browser ERROR   Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. TK-32840
+[00:00:10.415] Browser ERROR   Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. TK-32840
+[00:00:15.277] Browser ERROR   Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. TK-32840
+[00:00:18.564] Browser ERROR   Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. TK-32840
+[00:00:23.572] Browser ERROR   Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. TK-32840
+[00:00:25.007] Browser ERROR   Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. TK-32840
+[00:00:28.135] Browser ERROR   Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. TK-32840
+[00:02:19.662] Server  LOG     ✓ Compiled in 68ms
+[00:04:16.721] Server  LOG     ✓ Compiled in 52ms
+[00:08:18.762] Server  LOG     ✓ Compiled in 64ms
