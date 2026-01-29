@@ -63,7 +63,8 @@ export async function middleware(req: NextRequest) {
     }
 
     // For the simple token from login page, just check the role cookie
-    if (token === "secure-session") {
+    // "admin-token" is used specifically for the hardcoded admin login
+    if (token === "secure-session" || token === "admin-token") {
       const role = req.cookies.get("role")?.value;
 
       if (!role) {

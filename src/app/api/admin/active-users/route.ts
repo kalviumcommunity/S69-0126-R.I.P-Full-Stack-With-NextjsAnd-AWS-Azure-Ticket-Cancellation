@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
         }
 
         // For simple token from login page, just check role cookie
-        if (token === "secure-session") {
+        // "admin-token" is used specifically for the hardcoded admin login
+        if (token === "secure-session" || token === "admin-token") {
             const role = request.cookies.get("role")?.value;
 
             if (!role || role !== "admin") {

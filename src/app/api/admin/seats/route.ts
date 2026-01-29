@@ -8,8 +8,11 @@ import { verifyToken } from "@/lib/auth";
  */
 export async function POST(request: NextRequest) {
     try {
-        // Verify admin token from cookies
-        const token = request.cookies.get("accessToken")?.value;
+        // Check both token types
+        let token = request.cookies.get("token")?.value;
+        if (!token) {
+            token = request.cookies.get("accessToken")?.value;
+        }
 
         if (!token) {
             return NextResponse.json(
@@ -18,27 +21,39 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        let decoded;
-        try {
-            decoded = await verifyToken(token);
-        } catch (error) {
-            console.error("Token verification failed:", error);
-            return NextResponse.json(
-                { success: false, error: "Invalid token" },
-                { status: 401 }
-            );
-        }
+        // For simple token, check role cookie
+        if (token === "secure-session" || token === "admin-token") {
+            const role = request.cookies.get("role")?.value;
+            if (!role || role !== "admin") {
+                return NextResponse.json(
+                    { success: false, error: "Forbidden - Admin access required" },
+                    { status: 403 }
+                );
+            }
+        } else {
+            // For JWT tokens, verify
+            let decoded;
+            try {
+                decoded = await verifyToken(token);
+            } catch (error) {
+                console.error("Token verification failed:", error);
+                return NextResponse.json(
+                    { success: false, error: "Invalid token" },
+                    { status: 401 }
+                );
+            }
 
-        // Check if user is admin
-        if (decoded.role !== "admin") {
-            return NextResponse.json(
-                { success: false, error: "Forbidden - Admin access required" },
-                { status: 403 }
-            );
+            // Check if user is admin
+            if (decoded.role !== "admin") {
+                return NextResponse.json(
+                    { success: false, error: "Forbidden - Admin access required" },
+                    { status: 403 }
+                );
+            }
         }
 
         const body = await request.json();
-        const { seatId, userId } = body;
+        const { seatId, userId, source, destination, gender } = body;
 
         if (!seatId || !userId) {
             return NextResponse.json(
@@ -87,6 +102,9 @@ export async function POST(request: NextRequest) {
             data: {
                 status: "BOOKED",
                 allocatedUserId: userId,
+                source: source || "Not Specified",
+                destination: destination || "Not Specified",
+                passengerGender: gender || "Not Specified",
                 allocatedAt: new Date(),
             },
             include: {
@@ -133,8 +151,11 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
     try {
-        // Verify admin token from cookies
-        const token = request.cookies.get("accessToken")?.value;
+        // Check both token types
+        let token = request.cookies.get("token")?.value;
+        if (!token) {
+            token = request.cookies.get("accessToken")?.value;
+        }
 
         if (!token) {
             return NextResponse.json(
@@ -143,23 +164,35 @@ export async function PUT(request: NextRequest) {
             );
         }
 
-        let decoded;
-        try {
-            decoded = await verifyToken(token);
-        } catch (error) {
-            console.error("Token verification failed:", error);
-            return NextResponse.json(
-                { success: false, error: "Invalid token" },
-                { status: 401 }
-            );
-        }
+        // For simple token, check role cookie
+        if (token === "secure-session" || token === "admin-token") {
+            const role = request.cookies.get("role")?.value;
+            if (!role || role !== "admin") {
+                return NextResponse.json(
+                    { success: false, error: "Forbidden - Admin access required" },
+                    { status: 403 }
+                );
+            }
+        } else {
+            // For JWT tokens, verify
+            let decoded;
+            try {
+                decoded = await verifyToken(token);
+            } catch (error) {
+                console.error("Token verification failed:", error);
+                return NextResponse.json(
+                    { success: false, error: "Invalid token" },
+                    { status: 401 }
+                );
+            }
 
-        // Check if user is admin
-        if (decoded.role !== "admin") {
-            return NextResponse.json(
-                { success: false, error: "Forbidden - Admin access required" },
-                { status: 403 }
-            );
+            // Check if user is admin
+            if (decoded.role !== "admin") {
+                return NextResponse.json(
+                    { success: false, error: "Forbidden - Admin access required" },
+                    { status: 403 }
+                );
+            }
         }
 
         const body = await request.json();

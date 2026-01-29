@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
     }
 
     // For simple token from login page, just check role cookie
-    if (token === "secure-session") {
+    // "admin-token" is used specifically for the hardcoded admin login
+    if (token === "secure-session" || token === "admin-token") {
       const role = request.cookies.get("role")?.value;
 
       if (!role || role !== "admin") {
@@ -146,31 +147,31 @@ export async function POST(request: NextRequest) {
 
     // Create seats for the bus
     const seatsToCreate = [];
-    let seatCount = 0;
+    let seatSequence = 1;
 
-    for (let row = 1; row <= totalRows && seatCount < totalSeats; row++) {
+    for (let row = 1; row <= totalRows && seatSequence <= totalSeats; row++) {
       // Left side seats
-      for (let seat = 1; seat <= leftSeatsPerRow && seatCount < totalSeats; seat++) {
+      for (let seat = 1; seat <= leftSeatsPerRow && seatSequence <= totalSeats; seat++) {
         seatsToCreate.push({
           busId: bus.id,
-          seatNumber: `${row}L`,
+          seatNumber: seatSequence.toString(),
           row,
           position: "LEFT" as const,
           status: "AVAILABLE" as const,
         });
-        seatCount++;
+        seatSequence++;
       }
 
       // Right side seats
-      for (let seat = 1; seat <= rightSeatsPerRow && seatCount < totalSeats; seat++) {
+      for (let seat = 1; seat <= rightSeatsPerRow && seatSequence <= totalSeats; seat++) {
         seatsToCreate.push({
           busId: bus.id,
-          seatNumber: `${row}R`,
+          seatNumber: seatSequence.toString(),
           row,
           position: "RIGHT" as const,
           status: "AVAILABLE" as const,
         });
-        seatCount++;
+        seatSequence++;
       }
     }
 

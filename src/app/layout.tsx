@@ -13,16 +13,18 @@ export default function RootLayout({
   const pathname = usePathname();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setMounted(true);
-      const token = Cookies.get("token");
-      setIsLoggedIn(!!token);
-    }, 0);
+    // Ensuring the component is mounted to avoid hydration mismatch
+    setMounted(true);
 
-    return () => clearTimeout(timeoutId);
-  }, [pathname]);
+    const token = Cookies.get("token");
+    const userRole = Cookies.get("role");
+
+    setIsLoggedIn(!!token);
+    setRole(userRole || null);
+  }, [pathname]); // Re-check when the user changes pages
 
   const handleLogout = () => {
     Cookies.remove("token");
@@ -39,11 +41,28 @@ export default function RootLayout({
             <Link href="/" className="text-xl font-bold tracking-tighter text-white hover:opacity-80 transition-opacity">
               R.I.P<span className="text-rose-500">.</span>
             </Link>
-            
-            <div className="hidden md:flex gap-8 text-xs font-bold uppercase tracking-widest">
+
+            <div className="hidden md:flex gap-8 text-[10px] font-black uppercase tracking-[0.2em]">
               <Link href="/" className="hover:text-rose-400 transition-colors">Home</Link>
+
               {mounted && isLoggedIn && (
-                <Link href="/dashboard" className="hover:text-rose-400 transition-colors">Dashboard</Link>
+                <>
+                  {/* Show Admin Terminal only if role is admin */}
+                  {role === "admin" ? (
+                    <>
+                      <Link href="/admin/dashboard" className="text-blue-400 hover:text-blue-300 transition-colors">
+                        Admin Terminal
+                      </Link>
+                      <Link href="/admin/bookings" className="text-emerald-400 hover:text-emerald-300 transition-colors">
+                        Bus Management
+                      </Link>
+                    </>
+                  ) : (
+                    <Link href="/dashboard" className="hover:text-rose-400 transition-colors">
+                      Dashboard
+                    </Link>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -59,12 +78,19 @@ export default function RootLayout({
                 SIGN IN
               </Link>
             ) : (
-              <button
-                onClick={handleLogout}
-                className="text-xs font-bold text-slate-400 hover:text-rose-500 transition-colors uppercase tracking-widest"
-              >
-                Logout
-              </button>
+              <div className="flex items-center gap-6">
+                {/* Visual Role Indicator */}
+                <span className={`text-[9px] font-black px-2 py-1 rounded border ${role === 'admin' ? 'border-blue-500/30 text-blue-500 bg-blue-500/5' : 'border-rose-500/30 text-rose-500 bg-rose-500/5'}`}>
+                  {role?.toUpperCase()}
+                </span>
+
+                <button
+                  onClick={handleLogout}
+                  className="text-xs font-bold text-slate-400 hover:text-rose-500 transition-colors uppercase tracking-widest"
+                >
+                  Logout
+                </button>
+              </div>
             )}
           </div>
         </nav>

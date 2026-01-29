@@ -26,7 +26,7 @@ export async function PUT(
     }
 
     // For simple token, check role cookie
-    if (token === "secure-session") {
+    if (token === "secure-session" || token === "admin-token") {
       const role = request.cookies.get("role")?.value;
       if (!role || role !== "admin") {
         return NextResponse.json(
@@ -45,7 +45,7 @@ export async function PUT(
       }
     }
 
-    const { busNumber, totalSeats } = await request.json();
+    let { busNumber, totalSeats } = await request.json();
 
     if (!busNumber || !totalSeats) {
       return NextResponse.json(
@@ -54,17 +54,30 @@ export async function PUT(
       );
     }
 
-    // Validate bus number: must start with 2 letters, then 1-2 digits, then 1-2 letters, then 3-5 digits
-    const busNumberRegex = /^[a-zA-Z]{2}\d{1,2}[a-zA-Z]{1,2}\d{3,5}$/;
-    if (!busNumberRegex.test(busNumber)) {
+    // Normalize: remove dashes and spaces, uppercase
+    const rawBusNumber = busNumber.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+    // Extract parts for validation and formatting
+    const letters = rawBusNumber.replace(/[^A-Z]/g, "");
+    const numbers = rawBusNumber.replace(/[^0-9]/g, "");
+
+    // Validation: 2 letters initial, 3-4 total letters, 6 numbers total
+    if (letters.length < 3 || letters.length > 4 || numbers.length !== 6) {
       return NextResponse.json(
         {
           success: false,
-          error: "Bus number format invalid. Example: KL14AB1245 or KL2A1245",
+          error: "Bus number format invalid. Desired: XX-YY-ZZ-AAAA (e.g. KL-12-AB-1234)",
         },
         { status: 400 }
       );
     }
+
+    // Format as: XX-YY-AA-YYYY (or XX-YY-A-YYYY)
+    // First 2 letters
+    // First 2 numbers
+    // Remaining letters (1 or 2)
+    // Remaining 4 numbers
+    busNumber = `${letters.slice(0, 2)}-${numbers.slice(0, 2)}-${letters.slice(2)}-${numbers.slice(2)}`;
 
     const bus = await prisma.bus.update({
       where: { id: parseInt(params.id) },
@@ -133,7 +146,7 @@ export async function DELETE(
     }
 
     // For simple token, check role cookie
-    if (token === "secure-session") {
+    if (token === "secure-session" || token === "admin-token") {
       const role = request.cookies.get("role")?.value;
       if (!role || role !== "admin") {
         return NextResponse.json(

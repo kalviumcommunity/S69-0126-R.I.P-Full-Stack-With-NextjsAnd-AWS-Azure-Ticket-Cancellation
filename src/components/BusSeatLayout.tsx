@@ -92,10 +92,9 @@ function Seat({ number, selected, onClick }: SeatProps) {
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
       className={`h-12 w-12 rounded-xl text-sm font-medium shadow-md transition-all
-        ${
-          selected
-            ? "bg-blue-600 text-white"
-            : "bg-white hover:bg-blue-100"
+        ${selected
+          ? "bg-blue-600 text-white"
+          : "bg-white hover:bg-blue-100"
         }`}
     >
       {number}
