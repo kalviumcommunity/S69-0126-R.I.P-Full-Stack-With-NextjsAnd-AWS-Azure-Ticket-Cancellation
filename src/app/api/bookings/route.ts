@@ -48,7 +48,7 @@ const createBookingSchema = z.object({
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = extractAndVerifyToken(req);
+    const user = await extractAndVerifyToken(req);
 
     // Check authentication
     const authError = requirePermission(
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const user = extractAndVerifyToken(req);
+    const user = await extractAndVerifyToken(req);
 
     // Check authentication
     const authError = requirePermission(user, "booking.create", "bookings");

@@ -27,10 +27,10 @@ export async function POST(request: NextRequest) {
 
     try {
       // Verify the refresh token
-      const decoded = verifyRefreshToken(refreshToken);
+      const decoded = await verifyRefreshToken(refreshToken);
 
       // Generate new access token
-      const newAccessToken = signAccessToken({
+      const newAccessToken = await signAccessToken({
         id: decoded.id,
         email: decoded.email,
         role: decoded.role,

@@ -14,7 +14,7 @@
 //   const handleLogin = (e: React.FormEvent) => {
 //   e.preventDefault();
 //   setIsLoading(true);
-  
+
 //   setTimeout(() => {
 //     if (email === "admin@kalvium.com" && password === "12345") {
 //       Cookies.set("role", "admin");
@@ -100,78 +100,74 @@
 // }
 
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Cookies from "js-cookie";
+import { SignInButton } from "@clerk/nextjs";
 
 export default function Login() {
-  const [isSignup, setIsSignup] = useState(false); // Toggle between Login and Signup
+  const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState(""); // For Signup
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Handle Google OAuth (Visual Simulation)
-  const handleGoogleLogin = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      Cookies.set("role", "user");
-      Cookies.set("token", "google-oauth-token");
-      router.push("/dashboard");
-      router.refresh();
-    }, 1000);
-  };
 
-  const handleSubmit = (e: React.FormEvent) => {
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
-    setTimeout(() => {
+    try {
       if (isSignup) {
-        // --- SIGNUP LOGIC ---
-        const newUser = { email, password, name, role: "user" };
-        const existingUsers = JSON.parse(localStorage.getItem("rip_users") || "[]");
-        
-        // Check if user exists
-        if (existingUsers.find((u: any) => u.email === email)) {
-          setError("USER_EXISTS: Identifier already registered");
-          setIsLoading(false);
-          return;
-        }
+        // Call signup API
+        const response = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name, phone }),
+        });
 
-        existingUsers.push(newUser);
-        localStorage.setItem("rip_users", JSON.stringify(existingUsers));
-        alert("Account Created! Please Sign In.");
-        setIsSignup(false);
-        setIsLoading(false);
+        const data = await response.json();
+
+        if (response.ok) {
+          alert("Account Created! Please Sign In.");
+          setIsSignup(false);
+          setEmail("");
+          setPassword("");
+          setName("");
+          setPhone("");
+        } else {
+          setError(data.error || "Signup failed");
+        }
       } else {
-        // --- LOGIN LOGIC ---
-        // 1. Check Hardcoded Admin
-        if (email === "admin@kalvium.com" && password === "12345") {
-          Cookies.set("role", "admin");
-          Cookies.set("token", "admin-token");
-          router.push("/admin");
-        } 
-        // 2. Check Mock "Database" (LocalStorage)
-        else {
-          const users = JSON.parse(localStorage.getItem("rip_users") || "[]");
-          const foundUser = users.find((u: any) => u.email === email && u.password === password);
+        // Call login API
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email, password }),
+        });
 
-          if (foundUser) {
-            Cookies.set("role", foundUser.role);
-            Cookies.set("token", "secure-session-token");
-            router.push("/dashboard");
-          } else {
-            setError("ACCESS_DENIED: Invalid Credentials");
-          }
+        const data = await response.json();
+
+        if (response.ok) {
+          // Cookies are set by the API
+          router.push(data.user.role === "admin" ? "/admin/dashboard" : "/dashboard");
+          router.refresh();
+        } else {
+          setError(data.error || "Login failed");
         }
-        setIsLoading(false);
       }
-      router.refresh();
-    }, 800);
+    } catch (err) {
+      console.error("Auth error:", err);
+      setError("An error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -188,23 +184,25 @@ export default function Login() {
           </p>
         </header>
 
-        {/* Google Login Button */}
-        {!isSignup && (
-          <>
-            <button 
-              onClick={handleGoogleLogin}
-              className="w-full flex items-center justify-center gap-3 bg-white text-black py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-slate-200 transition-all mb-6 active:scale-95"
-            >
-              <img src="https://www.svgrepo.com/show/355037/google.svg" className="w-4 h-4" alt="Google" />
-              Continue with Google
-            </button>
-            <div className="flex items-center gap-4 mb-8">
-              <div className="h-px bg-slate-700 flex-grow" />
-              <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Or Protocol Key</span>
-              <div className="h-px bg-slate-700 flex-grow" />
-            </div>
-          </>
-        )}
+        {/* Google Login Button - Show in BOTH login and register modes */}
+        {/* Google Login Button - Show in BOTH login and register modes */}
+        <SignInButton
+          mode="modal"
+          forceRedirectUrl="/dashboard"
+          signUpForceRedirectUrl="/dashboard"
+        >
+          <button
+            className="w-full flex items-center justify-center gap-3 bg-white text-black py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-slate-200 transition-all mb-6 active:scale-95 disabled:opacity-50"
+          >
+            <img src="https://www.svgrepo.com/show/355037/google.svg" className="w-4 h-4" alt="Google" />
+            Continue with Google
+          </button>
+        </SignInButton>
+        <div className="flex items-center gap-4 mb-8">
+          <div className="h-px bg-slate-700 flex-grow" />
+          <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Or Protocol Key</span>
+          <div className="h-px bg-slate-700 flex-grow" />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {isSignup && (
@@ -248,7 +246,7 @@ export default function Login() {
             </div>
           )}
 
-          <button 
+          <button
             disabled={isLoading}
             className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 text-white py-4 rounded-2xl font-bold uppercase text-sm tracking-[0.2em] transition-all shadow-lg shadow-rose-900/20 active:scale-[0.98]"
           >
@@ -257,7 +255,7 @@ export default function Login() {
         </form>
 
         <footer className="mt-8 text-center space-y-4">
-          <button 
+          <button
             onClick={() => setIsSignup(!isSignup)}
             className="text-[10px] text-slate-400 hover:text-white transition-all uppercase font-black tracking-widest"
           >
@@ -268,6 +266,7 @@ export default function Login() {
           </p>
         </footer>
       </div>
+      <div id="clerk-captcha" />
     </main>
   );
 }

@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 /// Users represent passengers, operators, and administrators
@@ -12,8 +11,10 @@ model User {
   id             Int            @id @default(autoincrement())
   email          String         @unique
   name           String
-  phone          String         @unique
-  password       String
+  phone          String?        // Optional for OAuth users
+  password       String?        // Optional for OAuth users (not needed for Google OAuth)
+  clerkId        String?        @unique // Clerk user ID for OAuth users
+  provider       String         @default("email") // "email" or "google"
   role           UserRole       @default(PASSENGER)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -27,6 +28,7 @@ model User {
   @@index([email])
   @@index([phone])
   @@index([role])
+  @@index([clerkId])
 }
 
 /// Bus routes represent the journey from source to destination

@@ -37,20 +37,21 @@ interface Booking {
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const user = extractAndVerifyToken(req);
+    const user = await extractAndVerifyToken(req);
 
     // Check admin permission
     const authError = requirePermission(
       user,
       "booking.read.all",
-      `booking ${params.id}`
+      `booking ${id}`
     );
     if (authError) return authError;
 
-    const bookingId = parseInt(params.id);
+    const bookingId = parseInt(id);
     const booking = bookings.find((b: Booking) => b.id === bookingId);
 
     if (!booking) {
@@ -68,7 +69,7 @@ export async function GET(
       { status: 200 }
     );
   } catch (error) {
-    return handleError(error, `GET /api/admin/bookings/${params.id}`);
+    return handleError(error, `GET /api/admin/bookings/${id}`);
   }
 }
 
@@ -78,20 +79,21 @@ export async function GET(
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const user = extractAndVerifyToken(req);
+    const user = await extractAndVerifyToken(req);
 
     // Check admin permission
     const authError = requirePermission(
       user,
       "booking.cancel.all",
-      `booking ${params.id}`
+      `booking ${id}`
     );
     if (authError) return authError;
 
-    const bookingId = parseInt(params.id);
+    const bookingId = parseInt(id);
     const bookingIndex = bookings.findIndex((b: Booking) => b.id === bookingId);
 
     if (bookingIndex === -1) {
@@ -134,6 +136,6 @@ export async function DELETE(
       { status: 200 }
     );
   } catch (error) {
-    return handleError(error, `DELETE /api/admin/bookings/${params.id}`);
+    return handleError(error, `DELETE /api/admin/bookings/${id}`);
   }
 }

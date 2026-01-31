@@ -14,13 +14,17 @@ export interface AuthenticatedRequest extends NextRequest {
   user?: TokenPayload;
 }
 
+import { auth } from "@clerk/nextjs/server";
+import prisma from "./db";
+
 /**
  * Extract and verify token from request
  */
-export const extractAndVerifyToken = (
+export const extractAndVerifyToken = async (
   req: NextRequest
-): TokenPayload | null => {
+): Promise<TokenPayload | null> => {
   try {
+    // 1. Try custom JWT (Admin/Local)
     // Try Authorization header first (Bearer token)
     const authHeader = req.headers.get("authorization");
     let token: string | undefined;
@@ -34,11 +38,64 @@ export const extractAndVerifyToken = (
       token = req.cookies.get("accessToken")?.value;
     }
 
-    if (!token) {
-      return null;
+    if (token) {
+      return await verifyAccessToken(token);
     }
 
-    return verifyAccessToken(token);
+    // 2. Try Clerk Auth (Google/OAuth)
+    const { userId } = await auth();
+
+    if (userId) {
+      // Find user in database by Clerk ID, or create if not exists (Sync)
+      let user = await prisma.user.findUnique({
+        where: { clerkId: userId },
+      });
+
+      if (!user) {
+        // Fetch user details from Clerk to sync
+        const { clerkClient } = await import("@clerk/nextjs/server");
+        const client = await clerkClient();
+        const clerkUser = await client.users.getUser(userId);
+        const email = clerkUser.emailAddresses[0]?.emailAddress;
+
+        if (email) {
+          // Check if user exists by email (legacy/hybrid support)
+          const existingUserByEmail = await prisma.user.findUnique({
+            where: { email },
+          });
+
+          if (existingUserByEmail) {
+            // Link Clerk ID to existing user
+            user = await prisma.user.update({
+              where: { id: existingUserByEmail.id },
+              data: { clerkId: userId },
+            });
+          } else {
+            // Create new user
+            user = await prisma.user.create({
+              data: {
+                clerkId: userId,
+                email: email,
+                name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || "User",
+                role: "PASSENGER", // Default role
+              },
+            });
+            logger.info(`[Auth] Synced new Clerk user to DB: ${email}`);
+          }
+        }
+      }
+
+      if (user) {
+        // Map Prisma user to TokenPayload
+        return {
+          id: user.id,
+          email: user.email,
+          role: user.role.toLowerCase() as "admin" | "user",
+        };
+      }
+    }
+
+    return null;
   } catch (error) {
     logger.error("Token verification failed", { error });
     return null;

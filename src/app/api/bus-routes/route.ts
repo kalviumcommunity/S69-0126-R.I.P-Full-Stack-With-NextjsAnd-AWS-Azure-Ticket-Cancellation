@@ -34,7 +34,7 @@ const busRoutes: BusRoute[] = [];
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = extractAndVerifyToken(req);
+    const user = await extractAndVerifyToken(req);
 
     // Check authentication
     const authError = requirePermission(user, "bus.read", "bus routes");

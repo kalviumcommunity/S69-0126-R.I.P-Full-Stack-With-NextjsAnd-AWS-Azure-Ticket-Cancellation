@@ -1,0 +1,48 @@
+﻿.next/dev/types/validator.ts(144,31): error TS2344: Type 'typeof import("C:/Users/preet_hpydpxe/Downloads/team-1/src/app/api/admin/bookings/[id]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/admin/bookings/[id]">'.
+  Types of property 'GET' are incompatible.
+    Type '(req: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<unknown>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/dev/types/validator.ts(252,31): error TS2344: Type 'typeof import("C:/Users/preet_hpydpxe/Downloads/team-1/src/app/api/bookings/[id]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/bookings/[id]">'.
+  Types of property 'GET' are incompatible.
+    Type '(req: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<unknown>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+prisma/seed.ts(60,9): error TS6133: 'policy7days' is declared but its value is never read.
+prisma/seed.ts(69,9): error TS6133: 'policy3days' is declared but its value is never read.
+prisma/seed.ts(78,9): error TS6133: 'policy1day' is declared but its value is never read.
+src/app/api/admin/bookings/[id]/route.ts(47,7): error TS2345: Argument of type 'Promise<TokenPayload | null>' is not assignable to parameter of type 'TokenPayload'.
+  Type 'Promise<TokenPayload | null>' is missing the following properties from type 'TokenPayload': id, email, role
+src/app/api/admin/bookings/[id]/route.ts(60,32): error TS2339: Property 'email' does not exist on type 'Promise<TokenPayload | null>'.
+src/app/api/admin/bookings/route.ts(114,41): error TS2345: Argument of type 'Promise<TokenPayload | null>' is not assignable to parameter of type 'TokenPayload'.
+  Type 'Promise<TokenPayload | null>' is missing the following properties from type 'TokenPayload': id, email, role
+src/app/api/admin/bookings/route.ts(139,24): error TS2339: Property 'id' does not exist on type 'Promise<TokenPayload | null>'.
+src/app/api/admin/bookings/route.ts(144,32): error TS2339: Property 'email' does not exist on type 'Promise<TokenPayload | null>'.
+src/app/api/admin/bus-routes/route.ts(56,41): error TS2345: Argument of type 'Promise<TokenPayload | null>' is not assignable to parameter of type 'TokenPayload'.
+  Type 'Promise<TokenPayload | null>' is missing the following properties from type 'TokenPayload': id, email, role
+src/app/api/admin/bus-routes/route.ts(59,32): error TS2339: Property 'email' does not exist on type 'Promise<TokenPayload | null>'.
+src/app/api/admin/buses/route.ts(9,27): error TS6133: 'request' is declared but its value is never read.
+src/app/api/auth/logout/route.ts(12,28): error TS6133: 'request' is declared but its value is never read.
+src/app/api/auth/refresh/route.ts(34,21): error TS2339: Property 'id' does not exist on type 'Promise<TokenPayload>'.
+src/app/api/auth/refresh/route.ts(35,24): error TS2339: Property 'email' does not exist on type 'Promise<TokenPayload>'.
+src/app/api/auth/refresh/route.ts(36,23): error TS2339: Property 'role' does not exist on type 'Promise<TokenPayload>'.
+src/app/api/auth/refresh/route.ts(40,25): error TS2339: Property 'id' does not exist on type 'Promise<TokenPayload>'.
+src/app/api/auth/refresh/route.ts(41,24): error TS2339: Property 'email' does not exist on type 'Promise<TokenPayload>'.
+src/app/api/auth/refresh/route.ts(54,28): error TS2345: Argument of type '["accessToken", Promise<string>, { httpOnly: true; secure: boolean; sameSite: "strict"; maxAge: number; path: string; }]' is not assignable to parameter of type '[key: string, value: string, cookie?: Partial<ResponseCookie> | undefined] | [options: ResponseCookie]'.
+  Type '["accessToken", Promise<string>, { httpOnly: true; secure: boolean; sameSite: "strict"; maxAge: number; path: string; }]' is not assignable to type '[key: string, value: string, cookie?: Partial<ResponseCookie> | undefined]'.
+    Type at position 1 in source is not compatible with type at position 1 in target.
+      Type 'Promise<string>' is not assignable to type 'string'.
+src/app/api/auth/sync/route.ts(10,28): error TS6133: 'request' is declared but its value is never read.
+src/app/layout.tsx(23,11): error TS6133: 'token' is declared but its value is never read.
+src/app/layout.tsx(24,11): error TS6133: 'accessToken' is declared but its value is never read.
+src/components/BusSeatLayout.tsx(3,1): error TS6133: 'useState' is declared but its value is never read.
+src/components/BusSeatLayout.tsx(40,25): error TS2322: Type '{ key: number; number: number; position: string; selected: boolean; onClick: () => void; }' is not assignable to type 'IntrinsicAttributes & SeatProps'.
+  Property 'position' does not exist on type 'IntrinsicAttributes & SeatProps'.
+src/components/BusSeatLayout.tsx(60,25): error TS2322: Type '{ key: number; number: number; position: string; selected: boolean; onClick: () => void; }' is not assignable to type 'IntrinsicAttributes & SeatProps'.
+  Property 'position' does not exist on type 'IntrinsicAttributes & SeatProps'.
+src/lib/rbac.ts(80,17): error TS2322: Type '"USER"' is not assignable to type 'UserRole | undefined'.
+src/lib/redis.ts(1,19): error TS2307: Cannot find module 'ioredis' or its corresponding type declarations.

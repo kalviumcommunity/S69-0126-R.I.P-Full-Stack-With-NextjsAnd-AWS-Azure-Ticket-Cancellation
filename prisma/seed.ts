@@ -57,7 +57,7 @@ async function main() {
 
   // ===== Create Cancellation Policies =====
   console.log("📋 Creating cancellation policies...");
-  const policy7days = await prisma.cancellationPolicy.create({
+  await prisma.cancellationPolicy.create({
     data: {
       name: "7 Days Before Departure",
       daysBeforeDeparture: 7,
@@ -66,7 +66,7 @@ async function main() {
     },
   });
 
-  const policy3days = await prisma.cancellationPolicy.create({
+  await prisma.cancellationPolicy.create({
     data: {
       name: "3 Days Before Departure",
       daysBeforeDeparture: 3,
@@ -75,7 +75,7 @@ async function main() {
     },
   });
 
-  const policy1day = await prisma.cancellationPolicy.create({
+  await prisma.cancellationPolicy.create({
     data: {
       name: "1 Day Before Departure",
       daysBeforeDeparture: 1,
