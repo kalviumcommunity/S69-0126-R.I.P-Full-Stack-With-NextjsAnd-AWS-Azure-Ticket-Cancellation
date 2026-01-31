@@ -3,33 +3,85 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Cookies from "js-cookie";
 import { useEffect, useState } from "react";
+import { ClerkProvider, useUser, useClerk } from "@clerk/nextjs";
 import "./globals.css";
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [role, setRole] = useState<string | null>(null);
 
+  // Clerk hooks for OAuth users
+  const { user, isLoaded: clerkLoaded } = useUser();
+  const { signOut } = useClerk();
+
   useEffect(() => {
     // Ensuring the component is mounted to avoid hydration mismatch
     setMounted(true);
 
-    const token = Cookies.get("token");
     const userRole = Cookies.get("role");
 
-    setIsLoggedIn(!!token);
-    setRole(userRole || null);
-  }, [pathname]); // Re-check when the user changes pages
+    // Check both traditional auth (cookies) and Clerk auth
+    // Use userRole as the primary indicator for traditional auth since accessToken is httpOnly
+    const hasTraditionalAuth = !!userRole;
+    const hasClerkAuth = !!user;
 
-  const handleLogout = () => {
-    Cookies.remove("token");
-    Cookies.remove("role");
-    window.location.href = "/";
+    setIsLoggedIn(hasTraditionalAuth || hasClerkAuth);
+
+    // Set role from cookies or default to 'user' for Clerk users
+    if (userRole) {
+      setRole(userRole);
+    } else if (user) {
+      // For Clerk users, default to 'user' role
+      setRole("user");
+    } else {
+      setRole(null);
+    }
+  }, [pathname, user, clerkLoaded]); // Re-check when the user changes pages or Clerk state changes
+
+  // Sync Clerk users to database
+  useEffect(() => {
+    const syncUser = async () => {
+      if (user && clerkLoaded) {
+        try {
+          await fetch("/api/auth/sync", {
+            method: "POST",
+            credentials: "include",
+          });
+        } catch (error) {
+          console.error("Failed to sync user:", error);
+        }
+      }
+    };
+
+    syncUser();
+  }, [user, clerkLoaded]);
+
+  const handleLogout = async () => {
+    try {
+      // Clear traditional cookies
+      Cookies.remove("token");
+      Cookies.remove("role");
+      Cookies.remove("accessToken");
+      Cookies.remove("refreshToken");
+
+      // Reset local state
+      setIsLoggedIn(false);
+      setRole(null);
+
+      // Sign out from Clerk if user is authenticated via Clerk
+      if (user) {
+        await signOut();
+      }
+
+      // Redirect to home page
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Force redirect even if there's an error
+      window.location.href = "/";
+    }
   };
 
   return (
@@ -101,5 +153,17 @@ export default function RootLayout({
         </div>
       </body>
     </html>
+  );
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <ClerkProvider>
+      <LayoutContent>{children}</LayoutContent>
+    </ClerkProvider>
   );
 }

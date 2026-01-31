@@ -9,7 +9,7 @@ import { logger } from "@/lib/logger";
  * - Uses HTTP-only cookies to prevent XSS attacks
  * - SameSite=Strict prevents CSRF attacks
  */
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     logger.info("User logged out");
 

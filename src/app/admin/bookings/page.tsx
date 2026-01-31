@@ -147,6 +147,8 @@ export default function AdminBookingsPage() {
   const [editBusNumber, setEditBusNumber] = useState("");
   const [editTotalSeats, setEditTotalSeats] = useState("");
 
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Bus creation form state
   const [busNumber, setBusNumber] = useState("");
   const [totalSeats, setTotalSeats] = useState("40");
@@ -191,10 +193,14 @@ export default function AdminBookingsPage() {
         credentials: "include", // Important: include cookies
       });
 
+      console.log("Users API response status:", usersRes.status);
       if (usersRes.ok) {
         const usersData = await usersRes.json();
+        console.log("Users data:", usersData);
         setUsers(usersData.data.users);
         setSeatAllocations(usersData.data.seatAllocations);
+      } else {
+        console.error("Users API error:", await usersRes.text());
       }
 
       // Fetch buses (cookies sent automatically)
@@ -202,9 +208,13 @@ export default function AdminBookingsPage() {
         credentials: "include", // Important: include cookies
       });
 
+      console.log("Buses API response status:", busesRes.status);
       if (busesRes.ok) {
         const busesData = await busesRes.json();
+        console.log("Buses data:", busesData);
         setBuses(busesData.data);
+      } else {
+        console.error("Buses API error:", await busesRes.text());
       }
 
       setError("");
@@ -424,6 +434,12 @@ export default function AdminBookingsPage() {
     }
   };
 
+  // Filter users based on search
+  const filteredUsers = users.filter(user =>
+    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] p-8 flex items-center justify-center">
@@ -472,7 +488,7 @@ export default function AdminBookingsPage() {
               : "text-slate-500 hover:text-slate-300"
               }`}
           >
-            Passengers ({users.length})
+            Users ({users.length})
           </button>
           <button
             onClick={() => setActiveTab("buses")}
@@ -497,6 +513,20 @@ export default function AdminBookingsPage() {
         {/* Users Tab */}
         {activeTab === "users" && (
           <section className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Search Bar */}
+            <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 flex items-center gap-4">
+              <span className="text-slate-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </span>
+              <input
+                type="text"
+                placeholder="Search users using email or name..."
+                className="bg-transparent border-none outline-none text-white text-sm w-full placeholder:text-slate-600 font-mono"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
             <div className="bg-slate-900/40 border border-slate-800 rounded-2xl overflow-hidden backdrop-blur-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
@@ -510,7 +540,7 @@ export default function AdminBookingsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {users.map((user) => (
+                    {filteredUsers.map((user) => (
                       <tr key={user.id} className="hover:bg-slate-800/30 transition-colors">
                         <td className="px-6 py-4 text-slate-500 font-mono">#{user.id.toString().padStart(4, '0')}</td>
                         <td className="px-6 py-4">
@@ -531,9 +561,9 @@ export default function AdminBookingsPage() {
                   </tbody>
                 </table>
               </div>
-              {users.length === 0 && (
+              {filteredUsers.length === 0 && (
                 <div className="p-12 text-center text-slate-600 font-mono uppercase tracking-widest text-xs">
-                  No entities found in database
+                  {searchQuery ? "No matching users found" : "No entities found in database"}
                 </div>
               )}
             </div>

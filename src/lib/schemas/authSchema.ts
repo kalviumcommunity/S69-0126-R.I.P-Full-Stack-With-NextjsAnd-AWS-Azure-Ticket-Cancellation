@@ -31,7 +31,7 @@ export const loginSchema = z.object({
   email: sanitizedString(
     z.string().email("Invalid email address").toLowerCase()
   ),
-  password: z.string().min(8, "Password must be at least 8 characters long"),
+  password: z.string().min(5, "Password must be at least 5 characters long"),
 });
 
 export type SignupInput = z.infer<typeof signupSchema>;

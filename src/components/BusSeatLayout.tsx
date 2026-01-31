@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { } from "react";
 import { motion } from "framer-motion";
 
 interface BusSeatLayoutProps {
@@ -83,6 +83,7 @@ interface SeatProps {
   number: number;
   selected: boolean;
   onClick: () => void;
+  position?: string;
 }
 
 function Seat({ number, selected, onClick }: SeatProps) {

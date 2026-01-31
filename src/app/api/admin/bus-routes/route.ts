@@ -50,7 +50,7 @@ let nextBusId = 1;
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = extractAndVerifyToken(req);
+    const user = await extractAndVerifyToken(req);
 
     // Check admin permission
     const authError = requirePermission(user, "bus.read", "bus routes");
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const user = extractAndVerifyToken(req);
+    const user = await extractAndVerifyToken(req);
 
     // Check admin permission
     const authError = requirePermission(user, "bus.create", "bus routes");

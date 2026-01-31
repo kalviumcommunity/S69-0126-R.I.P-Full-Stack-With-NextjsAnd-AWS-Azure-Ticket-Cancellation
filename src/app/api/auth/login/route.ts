@@ -15,21 +15,115 @@ import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = sanitizePayload(await request.json(), {
+    const body = await request.json();
+    const { email, password } = body;
+
+    if (!email || !password) {
+      return NextResponse.json(
+        { success: false, error: "Email and password are required" },
+        { status: 400 }
+      );
+    }
+
+    // Hardcoded admin credentials check
+    const ADMIN_EMAIL = "Admin@kalvium.com";
+    const ADMIN_PASSWORD = "12345";
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedAdminEmail = ADMIN_EMAIL.toLowerCase();
+
+    logger.info("Login attempt received", { email: normalizedEmail });
+
+    if (normalizedEmail === normalizedAdminEmail) {
+      if (password !== ADMIN_PASSWORD) {
+        logger.warn("Admin password mismatch");
+        return NextResponse.json({
+          success: false,
+          error: "Admin password incorrect"
+        }, { status: 401 });
+      }
+
+      logger.info("Admin credentials matched");
+      // Admin login successful
+      const accessToken = await signAccessToken({
+        id: 0,
+        email: ADMIN_EMAIL,
+        role: "admin",
+      });
+
+      const refreshToken = await signRefreshToken({
+        id: 0,
+        email: ADMIN_EMAIL,
+        role: "admin",
+      });
+
+      const response = NextResponse.json({
+        success: true,
+        message: "Admin login successful",
+        user: {
+          email: ADMIN_EMAIL,
+          role: "admin",
+          name: "Admin"
+        }
+      });
+
+      // Set cookies
+      response.cookies.set("accessToken", accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 24 * 60 * 60, // 24 hours
+        path: "/",
+      });
+
+      response.cookies.set("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 90 * 24 * 60 * 60, // 90 days
+        path: "/",
+      });
+
+      // Public cookie for UI state
+      response.cookies.set("role", "admin", {
+        httpOnly: false, // Allow client JS to read this
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 24 * 60 * 60,
+        path: "/",
+      });
+
+      logger.info("Admin login successful", { email: ADMIN_EMAIL });
+      return response;
+    }
+
+    // Regular user login - validate with schema
+    // Sanitize payload before parsing with Zod
+    const sanitizedBody = sanitizePayload(body, {
       skipKeys: ["password"],
     });
-    const data = loginSchema.parse(body);
+    const validatedData = loginSchema.parse(sanitizedBody);
 
-    // Use Prisma to find user in database
+    // Find user in database
     const user = await prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email: validatedData.email },
     });
 
     if (!user) {
-      throw new NotFoundError("User not found");
+      logger.warn("Login failed: User not found", { email: validatedData.email });
+      throw new NotFoundError("User not found"); // Changed to throw NotFoundError for consistency
     }
 
-    const isValid = await bcrypt.compare(data.password, user.password);
+    // Check if user has a password (not OAuth user)
+    if (!user.password) {
+      logger.warn("Login failed: OAuth user trying password login", { email: validatedData.email });
+      return NextResponse.json(
+        { success: false, error: "Please sign in with Google" },
+        { status: 401 }
+      );
+    }
+
+    const isValid = await bcrypt.compare(validatedData.password, user.password);
     if (!isValid) {
       throw new AuthenticationError("Invalid credentials");
     }
@@ -78,6 +172,15 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       maxAge: 90 * 24 * 60 * 60, // 90 days in seconds
+      path: "/",
+    });
+
+    // Public cookie for UI state
+    response.cookies.set("role", role, {
+      httpOnly: false, // Allow client JS to read this
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60,
       path: "/",
     });
 
