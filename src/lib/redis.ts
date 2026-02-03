@@ -12,12 +12,16 @@ const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379", {
     return delay;
   },
   // Enable automatic reconnection
-  enableReadyCheck: true,
-  enableOfflineQueue: true,
+  enableReadyCheck: false,
+  enableOfflineQueue: false,
   // Connection timeout
-  connectTimeout: 10000,
+  connectTimeout: 5000,
   // Command timeout
-  commandTimeout: 30000,
+  commandTimeout: 5000,
+  // Max retries
+  maxRetriesPerRequest: 1,
+  // Don't throw errors on failed connections
+  lazyConnect: true,
 });
 
 // Connection event handlers

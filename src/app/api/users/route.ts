@@ -40,7 +40,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 1: Check Redis Cache
-    const cachedUsers = await redis.get(CACHE_KEY_USERS_LIST);
+    let cachedUsers = null;
+    try {
+      cachedUsers = await redis.get(CACHE_KEY_USERS_LIST);
+    } catch (err) {
+      logger.warn("Redis cache error, continuing without cache", { error: err });
+    }
+    
     if (cachedUsers) {
       logger.info("Cache Hit - Users fetched from Redis", { email: userEmail });
       return NextResponse.json(
@@ -61,14 +67,18 @@ export async function GET(request: NextRequest) {
     logger.info("Cache Miss - Fetching users from database", {
       email: userEmail,
     });
-    const users = getPublicUsers();
+    const users = await getPublicUsers();
 
-    // Step 3: Store in cache with TTL
-    await redis.setex(
-      CACHE_KEY_USERS_LIST,
-      CACHE_TTL_SECONDS,
-      JSON.stringify(users)
-    );
+    // Step 3: Store in cache with TTL (non-blocking)
+    try {
+      await redis.setex(
+        CACHE_KEY_USERS_LIST,
+        CACHE_TTL_SECONDS,
+        JSON.stringify(users)
+      );
+    } catch (err) {
+      logger.warn("Redis cache set error, continuing", { error: err });
+    }
 
     logger.info("Users fetched and cached successfully", {
       email: userEmail,
@@ -106,26 +116,22 @@ export async function POST(request: NextRequest) {
     // Validate request body with Zod
     const validatedData = userSchema.parse(body);
 
-    // TODO: Check if email already exists in database
-    // const existingUser = await db.user.findUnique({ where: { email: validatedData.email } });
-    // if (existingUser) {
-    //   throw new ConflictError('Email already exists');
-    // }
 
-    // TODO: Create user in database
-    // const newUser = await db.user.create({
-    //   data: {
-    //     name: validatedData.name,
-    //     email: validatedData.email,
-    //     age: validatedData.age,
-    //   },
-    // });
-    const newUser = {
-      id: 0,
-      name: validatedData.name,
-      email: validatedData.email,
-      age: validatedData.age,
-    };
+    // Check if email already exists in database
+    const existingUser = await prisma.user.findUnique({ where: { email: validatedData.email } });
+    if (existingUser) {
+      throw new ConflictError('Email already exists');
+    }
+
+    // Create user in database
+    const newUser = await prisma.user.create({
+      data: {
+        name: validatedData.name,
+        email: validatedData.email,
+        age: validatedData.age,
+        // Add other fields as needed
+      },
+    });
 
     // Invalidate cache - clear the users:list cache after new user creation
     await redis.del(CACHE_KEY_USERS_LIST);

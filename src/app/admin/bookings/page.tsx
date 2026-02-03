@@ -168,6 +168,9 @@ export default function AdminBookingsPage() {
   const [userAge, setUserAge] = useState("");
   const [userGender, setUserGender] = useState("Male");
 
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{ seatId: number } | null>(null);
+
   const addNotification = (message: string, type: "success" | "error" | "info" = "info", duration?: number) => {
     const id = Date.now().toString();
     setNotifications((prev) => [...prev, { id, message, type, duration }]);
@@ -291,10 +294,7 @@ export default function AdminBookingsPage() {
     setAllocatingSeats(true);
     try {
       const selectedSeat = selectedBusSeats.find(
-        (s) => {
-          const seatNum = s.seatNumber.match(/\d+/)?.[0];
-          return parseInt(seatNum || "0") === selectedSeatNumber;
-        }
+        (s) => parseInt(s.seatNumber) === selectedSeatNumber
       );
 
       if (!selectedSeat) {
@@ -328,6 +328,10 @@ export default function AdminBookingsPage() {
         setUserAge("");
         setUserGender("Male");
         await fetchData();
+        // Force refresh of buses to show updated seat statuses
+        setTimeout(() => {
+          fetchData();
+        }, 500);
         setError("");
         addNotification("Seat allocated successfully!", "success", 4000);
       } else {
@@ -343,9 +347,13 @@ export default function AdminBookingsPage() {
   };
 
   const handleDeallocateSeat = async (seatId: number) => {
-    if (!confirm("Are you sure you want to deallocate this seat?")) {
-      return;
-    }
+    setConfirmDialog({ seatId });
+  };
+
+  const confirmDeallocate = async () => {
+    if (!confirmDialog) return;
+    const seatId = confirmDialog.seatId;
+    setConfirmDialog(null);
 
     try {
       const response = await fetch("/api/admin/seats", {
@@ -371,6 +379,10 @@ export default function AdminBookingsPage() {
       console.error("Error deallocating seat:", err);
       addNotification("Error deallocating seat. Please try again.", "error", 4000);
     }
+  };
+
+  const cancelDeallocate = () => {
+    setConfirmDialog(null);
   };
 
   const handleEditBus = (bus: Bus) => {
@@ -541,7 +553,11 @@ export default function AdminBookingsPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-800">
                     {filteredUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-slate-800/30 transition-colors">
+                      <tr 
+                        key={user.id} 
+                        className="hover:bg-slate-800/30 transition-colors cursor-pointer"
+                        onClick={() => window.location.href = `/users/${user.id}`}
+                      >
                         <td className="px-6 py-4 text-slate-500 font-mono">#{user.id.toString().padStart(4, '0')}</td>
                         <td className="px-6 py-4">
                           <div className="font-bold text-white">{user.name}</div>
@@ -763,13 +779,30 @@ export default function AdminBookingsPage() {
                   <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6 text-center">
                     Select Seats
                   </label>
-                  <BusSeatLayout
-                    rows={buses.find((b) => b.id === selectedBusId)?.totalRows || 8}
-                    leftSeats={buses.find((b) => b.id === selectedBusId)?.leftSeatsPerRow || 2}
-                    rightSeats={buses.find((b) => b.id === selectedBusId)?.rightSeatsPerRow || 3}
-                    onSelectSeat={setSelectedSeatNumber}
-                    selectedSeatNumber={selectedSeatNumber}
-                  />
+                  {(() => {
+                    const selectedBus = buses.find((b) => b.id === selectedBusId);
+                    // Get booked seats as full seat objects for easier matching
+                    const bookedSeatIds = new Set(selectedBus?.seats
+                      .filter((s) => s.status === "BOOKED")
+                      .map((s) => s.id) || []);
+                    
+                    console.log("Selected bus:", selectedBus?.busNumber);
+                    console.log("All seats count:", selectedBus?.seats.length);
+                    console.log("Booked seat IDs:", Array.from(bookedSeatIds));
+                    console.log("Sample seats:", selectedBus?.seats.slice(0, 5).map(s => ({ id: s.id, num: s.seatNumber, pos: s.position, status: s.status })));
+                    
+                    return (
+                      <BusSeatLayout
+                        rows={selectedBus?.totalRows || 8}
+                        leftSeats={selectedBus?.leftSeatsPerRow || 2}
+                        rightSeats={selectedBus?.rightSeatsPerRow || 3}
+                        onSelectSeat={setSelectedSeatNumber}
+                        selectedSeatNumber={selectedSeatNumber}
+                        bookedSeats={selectedBus?.seats.filter((s) => s.status === "BOOKED").map((s) => s.seatNumber) || []}
+                        allSeats={selectedBus?.seats || []}
+                      />
+                    );
+                  })()}
                 </div>
               )}
 
@@ -921,6 +954,37 @@ export default function AdminBookingsPage() {
                   No active bookings found
                 </p>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Custom Confirmation Dialog */}
+        {confirmDialog && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900/95 border border-slate-700/50 rounded-[2rem] p-8 max-w-md w-full shadow-2xl">
+              <div className="text-center space-y-6">
+                <div>
+                  <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic mb-2">
+                    Confirm <span className="text-rose-500">Cancellation</span>
+                  </h2>
+                  <p className="text-slate-400 text-sm font-medium">Are you sure you want to deallocate this seat? This action cannot be undone.</p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={cancelDeallocate}
+                    className="flex-1 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold uppercase text-xs tracking-[0.2em] transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeallocate}
+                    className="flex-1 px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold uppercase text-xs tracking-[0.2em] transition-all shadow-lg shadow-rose-900/20"
+                  >
+                    Deallocate
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

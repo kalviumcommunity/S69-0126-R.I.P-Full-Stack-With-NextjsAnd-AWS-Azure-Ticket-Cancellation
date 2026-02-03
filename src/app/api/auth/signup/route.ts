@@ -14,36 +14,53 @@ import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = sanitizePayload(await request.json(), {
+    console.log("=== SIGNUP REQUEST ===");
+    const rawBody = await request.json();
+    console.log("Raw body received:", rawBody);
+
+    const body = sanitizePayload(rawBody, {
       skipKeys: ["password"],
     });
-    const data = signupSchema.parse(body);
+    console.log("Sanitized body:", body);
 
-    const existing = findUserByEmail(data.email);
+    const data = signupSchema.parse(body);
+    console.log("Parsed/validated data:", data);
+
+    const existing = await findUserByEmail(data.email);
     if (existing) {
+      console.log("User already exists:", data.email);
       throw new ConflictError("User already exists");
     }
 
     const passwordHash = await bcrypt.hash(data.password, 10);
-    const created = createUser({
+    const created = await createUser({
       name: data.name,
       email: data.email,
       passwordHash,
       role: data.role,
       age: data.age,
     });
+    console.log("User created:", created.id);
+
+    // Map database enum role back to lowercase for tokens
+    const roleMap = {
+      PASSENGER: "user",
+      OPERATOR: "user",
+      ADMIN: "admin",
+    } as const;
+    const normalizedRole = roleMap[created.role as keyof typeof roleMap];
 
     // Generate access and refresh tokens using jose
     const accessToken = await signAccessToken({
       id: created.id,
       email: created.email,
-      role: created.role,
+      role: normalizedRole,
     });
 
     const refreshToken = await signRefreshToken({
       id: created.id,
       email: created.email,
-      role: created.role,
+      role: normalizedRole,
     });
 
     logger.info("User signed up successfully", {
@@ -77,18 +94,52 @@ export async function POST(request: NextRequest) {
       path: "/",
     });
 
+    console.log("=== SIGNUP SUCCESS ===");
     return response;
   } catch (error) {
+    console.error("=== SIGNUP ERROR ===", error);
+    
     if (error instanceof ZodError) {
-      const validationError = new ValidationError(
-        "Validation failed: " +
-          error.issues
-            .map((e) => `${e.path.join(".")}: ${e.message}`)
-            .join(", ")
+      // Return all field errors as an object: { field: message }
+      const fieldErrors: Record<string, string> = {};
+      error.issues.forEach((err) => {
+        const field = err.path.join(".");
+        fieldErrors[field] = err.message;
+      });
+      console.log("Zod validation errors:", fieldErrors);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Validation failed",
+          fieldErrors,
+        },
+        { status: 400 }
       );
-      return handleError(validationError, "POST /api/auth/signup");
     }
 
-    return handleError(error, "POST /api/auth/signup");
+    if (error instanceof ConflictError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          fieldErrors: {},
+        },
+        { status: 409 }
+      );
+    }
+
+    let errorMessage = "Signup failed";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    console.log("Error response:", errorMessage);
+    return NextResponse.json(
+      {
+        success: false,
+        error: errorMessage,
+        fieldErrors: {},
+      },
+      { status: 500 }
+    );
   }
 }

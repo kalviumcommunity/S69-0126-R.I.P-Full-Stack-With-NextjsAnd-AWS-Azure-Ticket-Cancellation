@@ -32,11 +32,27 @@ export const logger = {
    * @param meta - Additional error metadata (stack trace, context, etc.)
    */
   error: (message: string, meta?: LogMeta) => {
+    let errorDetails = meta;
+    if (meta && meta.error) {
+      const err = meta.error;
+      if (err instanceof Error) {
+        errorDetails = {
+          ...meta,
+          errorMessage: err.message,
+          errorStack: err.stack,
+        };
+      } else if (typeof err === "string") {
+        errorDetails = {
+          ...meta,
+          errorMessage: err,
+        };
+      }
+    }
     console.error(
       JSON.stringify({
         level: "error",
         message,
-        meta,
+        meta: errorDetails,
         timestamp: new Date().toISOString(),
       })
     );
