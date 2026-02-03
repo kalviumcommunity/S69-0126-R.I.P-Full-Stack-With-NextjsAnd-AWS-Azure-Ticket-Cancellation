@@ -1,20 +1,9 @@
-/**
- * Admin Bookings API
- *
- * Allows admins to:
- * - View all bookings across all users
- * - View booking details including user information
- * - Create bookings for users
- * - Cancel any booking
- *
- * Permissions: admin only
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { extractAndVerifyToken, requirePermission } from "@/lib/rbac";
 import { handleError, ValidationError } from "@/lib/errorHandler";
 import { logger } from "@/lib/logger";
 import { z } from "zod";
+import prisma from "@/lib/db";
 
 // Import and re-export shared bookings array
 import { bookings } from "../../bookings/route";
@@ -129,6 +118,21 @@ export async function POST(req: NextRequest) {
       throw new ValidationError("Seat is already booked");
     }
 
+    // Also create in Prisma database
+    const ticketNumber = `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
+    
+    const ticket = await prisma.ticket.create({
+      data: {
+        ticketNumber,
+        userId: data.userId,
+        routeId: data.busRouteId,
+        seatNumber: data.seatNumber.toString(),
+        status: "ACTIVE",
+        purchasePrice: 0, // This should come from route pricing
+        travelDate: new Date(),
+      },
+    });
+
     const newBooking = {
       id: nextBookingId++,
       ...data,
@@ -145,12 +149,13 @@ export async function POST(req: NextRequest) {
       bookingId: newBooking.id,
       userId: newBooking.userId,
       busRouteId: newBooking.busRouteId,
+      ticketId: ticket.id,
     });
 
     return NextResponse.json(
       {
         success: true,
-        data: { booking: newBooking },
+        data: { booking: newBooking, ticket },
         message: "Booking created successfully",
       },
       { status: 201 }

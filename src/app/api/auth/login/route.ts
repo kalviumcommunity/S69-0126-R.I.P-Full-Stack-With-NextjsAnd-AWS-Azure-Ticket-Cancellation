@@ -18,7 +18,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password } = body;
 
+    console.log("=== LOGIN REQUEST ===");
+    console.log("Raw body:", body);
+    console.log("Email:", email, "Password:", password ? "***" : "undefined");
+
     if (!email || !password) {
+      console.log("Missing email or password!");
       return NextResponse.json(
         { success: false, error: "Email and password are required" },
         { status: 400 }
@@ -123,8 +128,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log("=== PASSWORD COMPARISON ===");
+    console.log("Stored password hash starts with:", user.password?.substring(0, 20));
+    console.log("Password provided:", validatedData.password);
+    
     const isValid = await bcrypt.compare(validatedData.password, user.password);
+    console.log("bcrypt.compare result:", isValid);
+    
     if (!isValid) {
+      console.log("Password mismatch! User password hash:", user.password);
       throw new AuthenticationError("Invalid credentials");
     }
 
@@ -152,7 +164,12 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json(
       {
         success: true,
-        data: { accessToken },
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: role,
+        },
         message: "Login successful",
       },
       { status: 200 }
@@ -186,15 +203,18 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
+    let errorMessage = "Login failed";
     if (error instanceof ZodError) {
-      const validationError = new ValidationError(
-        "Validation failed: " +
-        error.issues
-          .map((e) => `${e.path.join(".")}: ${e.message}`)
-          .join(", ")
-      );
-      return handleError(validationError, "POST /api/auth/login");
+      errorMessage = error.issues.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
     }
-    return handleError(error, "POST /api/auth/login");
+    return NextResponse.json(
+      {
+        success: false,
+        error: errorMessage,
+      },
+      { status: 400 }
+    );
   }
 }

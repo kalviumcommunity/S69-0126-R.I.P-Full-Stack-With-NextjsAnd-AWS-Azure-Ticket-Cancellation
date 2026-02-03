@@ -124,11 +124,65 @@ export async function POST(request: NextRequest) {
             },
         });
 
+        // Also create a Ticket record for this booking
+        let ticket = null;
+        try {
+            // Get or create a route for this bus
+            let route = await prisma.busRoute.findFirst({
+                where: {
+                    // Try to find a route with matching source/destination if provided
+                    ...(source && destination ? {
+                        source: source,
+                        destination: destination,
+                    } : {})
+                }
+            });
+            
+            // If no route exists, create one
+            if (!route) {
+                // Find any admin user to be the operator, or use user 1 as fallback
+                const admin = await prisma.user.findFirst({
+                    where: { role: "ADMIN" }
+                }) || await prisma.user.findFirst({
+                    where: { id: 1 }
+                });
+
+                route = await prisma.busRoute.create({
+                    data: {
+                        operatorId: admin?.id || userId,
+                        source: source || "Starting Point",
+                        destination: destination || "Destination",
+                        departureTime: new Date(),
+                        arrivalTime: new Date(Date.now() + 3600000), // 1 hour later
+                        totalSeats: 50,
+                        availableSeats: 50,
+                        basePrice: 500,
+                    },
+                });
+            }
+
+            ticket = await prisma.ticket.create({
+                data: {
+                    ticketNumber: `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase(),
+                    userId: userId,
+                    routeId: route.id,
+                    seatNumber: seat.seatNumber,
+                    status: "ACTIVE",
+                    purchasePrice: route.basePrice || 500,
+                    travelDate: new Date(),
+                },
+            });
+        } catch (ticketError) {
+            console.error("Error creating ticket (non-blocking):", ticketError);
+            // Don't fail the seat allocation if ticket creation fails
+        }
+
         return NextResponse.json(
             {
                 success: true,
                 message: "Seat allocated successfully",
                 data: updatedSeat,
+                ticket: ticket,
             },
             { status: 200 }
         );
@@ -222,6 +276,16 @@ export async function PUT(request: NextRequest) {
                 { success: false, error: "Seat is already available" },
                 { status: 400 }
             );
+        }
+
+        // Delete associated ticket if it exists
+        if (seat.allocatedUserId) {
+            await prisma.ticket.deleteMany({
+                where: {
+                    userId: seat.allocatedUserId,
+                    seatNumber: seat.seatNumber,
+                },
+            });
         }
 
         // Deallocate the seat

@@ -31,42 +31,47 @@ export type User = {
   createdAt: string;
 };
 
-let nextId = 1;
-const users: User[] = [];
 
-export const findUserByEmail = (email: string): User | undefined => {
-  return users.find((u) => u.email === email);
+// Prisma-based implementations
+export const findUserByEmail = async (email: string) => {
+  return await prisma.user.findUnique({ where: { email } });
 };
 
-export const createUser = (params: {
+export const createUser = async (params: {
   name: string;
   email: string;
   passwordHash: string;
   role?: "admin" | "user";
   age?: number;
-}): User => {
-  const user: User = {
-    id: nextId++,
-    name: params.name,
-    email: params.email,
-    passwordHash: params.passwordHash,
-    role: params.role || "user",
-    age: params.age,
-    createdAt: new Date().toISOString(),
-  };
-  users.push(user);
-  return user;
-};
-
-export const getAllUsers = (): User[] => {
-  return users;
+}) => {
+  // Map lowercase role to database enum values
+  const roleMap = {
+    admin: "ADMIN",
+    user: "PASSENGER",  // "user" maps to PASSENGER in the database
+  } as const;
+  
+  return await prisma.user.create({
+    data: {
+      name: params.name,
+      email: params.email,
+      password: params.passwordHash, // Prisma model uses 'password'
+      role: roleMap[params.role || "user"] as any,
+    },
+  });
 };
 
 export type PublicUser = Omit<User, "passwordHash">;
 
-export const toPublicUser = (user: User): PublicUser => {
-  const { passwordHash, ...rest } = user;
+export const toPublicUser = (user: any): PublicUser => {
+  // Remove sensitive fields
+  // Adjust according to your Prisma model
+  // If your model uses 'password' instead of 'passwordHash', update accordingly
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { password, ...rest } = user;
   return rest;
 };
 
-export const getPublicUsers = (): PublicUser[] => users.map(toPublicUser);
+export const getPublicUsers = async (): Promise<PublicUser[]> => {
+  const users = await prisma.user.findMany();
+  return users.map(toPublicUser);
+};

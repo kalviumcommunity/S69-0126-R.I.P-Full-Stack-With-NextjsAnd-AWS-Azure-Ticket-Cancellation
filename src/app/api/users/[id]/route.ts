@@ -9,9 +9,7 @@ import {
 import { logger } from "@/lib/logger";
 import redis from "@/lib/redis";
 import { sanitizeInput, sanitizePayload } from "@/lib/sanitizer";
-
-// TODO: Import your database client here
-// import { db } from '@/lib/db';
+import prisma from "@/lib/db";
 
 // Cache configuration
 const CACHE_KEY_USERS_LIST = "users:list";
@@ -19,7 +17,7 @@ const CACHE_TTL_SECONDS = 60; // 1 minute TTL
 
 /**
  * GET /api/users/:id
- * Get user by ID
+ * Get user by ID with tickets
  *
  * Cache Strategy: Cache-Aside Pattern
  * - Individual user data cached separately from the list
@@ -37,9 +35,18 @@ export async function GET(
       throw new ValidationError("Invalid user ID format");
     }
 
-    // Step 1: Check Redis Cache for this specific user
+    // Step 1: Check Redis Cache for this specific user (but always fetch fresh tickets)
     const cacheKey = `user:${userId}`;
-    const cachedUser = await redis.get(cacheKey);
+    let cachedUser = null;
+    
+    // For now, skip cache to ensure fresh route data is always fetched
+    // TODO: Implement better cache invalidation when tickets change
+    /*
+    try {
+      cachedUser = await redis.get(cacheKey);
+    } catch (err) {
+      logger.warn("Redis cache error, continuing without cache", { error: err });
+    }
 
     if (cachedUser) {
       logger.info("Cache Hit - User fetched from Redis", { userId });
@@ -53,25 +60,55 @@ export async function GET(
         { status: 200 }
       );
     }
+    */
 
-    // Step 2: Cache Miss - Fetch user from database
+    // Step 2: Fetch user from database with tickets
     logger.info("Cache Miss - Fetching user from database", { userId });
-    // TODO: Fetch user from database
-    // const user = await db.user.findUnique({ where: { id: userId } });
-    const user = null;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tickets: {
+          include: {
+            route: true,
+          },
+        },
+      },
+    });
 
     if (!user) {
       throw new NotFoundError("User not found");
     }
 
-    // Step 3: Store in cache with TTL
-    await redis.setex(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(user));
+    // Remove sensitive password field
+    const { password, ...userWithoutPassword } = user;
+
+    logger.info("User fetched with tickets", { 
+      userId, 
+      ticketCount: user.tickets.length,
+      tickets: user.tickets.map(t => ({
+        id: t.id,
+        ticketNumber: t.ticketNumber,
+        route: t.route
+      }))
+    });
+
+    // Step 3: Store in cache with TTL (non-blocking)
+    // Note: Currently disabled caching for user endpoint to ensure fresh ticket/route data
+    // TODO: Re-enable with better cache invalidation strategy
+    /*
+    try {
+      await redis.setex(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(userWithoutPassword));
+    } catch (err) {
+      logger.warn("Redis cache set error, continuing", { error: err });
+    }
+    */
 
     logger.info("User fetched and cached by ID", { userId });
     return NextResponse.json(
       {
         success: true,
-        data: user,
+        data: userWithoutPassword,
         message: "User fetched successfully",
         cacheStatus: "MISS",
       },
@@ -84,7 +121,7 @@ export async function GET(
 
 /**
  * PUT /api/users/:id
- * Update a user (full update)
+ * Update a user
  *
  * Cache Invalidation: After updating a user, invalidate:
  * 1. The specific user cache (user:id)
@@ -103,45 +140,54 @@ export async function PUT(
       throw new ValidationError("Invalid user ID format");
     }
 
-    // Validate request body with Zod
-    const validatedData = userSchema.parse(body);
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tickets: true,
+      },
+    });
 
-    // TODO: Check if user exists
-    // const existingUser = await db.user.findUnique({ where: { id: userId } });
-    // if (!existingUser) {
-    //   throw new NotFoundError('User not found');
-    // }
+    if (!existingUser) {
+      throw new NotFoundError("User not found");
+    }
 
-    // TODO: Check if email is taken by another user
-    // const emailTaken = await db.user.findFirst({
-    //   where: { email: validatedData.email, NOT: { id: userId } },
-    // });
-    // if (emailTaken) {
-    //   throw new ConflictError('Email already exists');
-    // }
+    // Update only the provided fields
+    const updateData: any = {};
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.email !== undefined) updateData.email = body.email;
+    if (body.phone !== undefined) updateData.phone = body.phone;
+    if (body.age !== undefined) updateData.age = body.age;
 
-    // TODO: Update user in database
-    // const updatedUser = await db.user.update({
-    //   where: { id: userId },
-    //   data: { name: validatedData.name, email: validatedData.email, age: validatedData.age },
-    // });
-    const updatedUser = {
-      id: userId,
-      name: validatedData.name,
-      email: validatedData.email,
-      age: validatedData.age,
-    };
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      include: {
+        tickets: {
+          include: {
+            route: true,
+          },
+        },
+      },
+    });
 
-    // Invalidate cache - clear both user-specific and list caches
-    await redis.del(`user:${userId}`);
-    await redis.del(CACHE_KEY_USERS_LIST);
+    // Remove password field
+    const { password, ...userWithoutPassword } = updatedUser;
+
+    // Invalidate cache - clear both user-specific and list caches (non-blocking)
+    try {
+      await redis.del(`user:${userId}`);
+      await redis.del(CACHE_KEY_USERS_LIST);
+    } catch (err) {
+      logger.warn("Redis cache invalidation error, continuing", { error: err });
+    }
     logger.info("Cache invalidated after user update", { userId });
 
     logger.info("User updated successfully", { userId });
     return NextResponse.json(
       {
         success: true,
-        data: updatedUser,
+        data: userWithoutPassword,
         message: "User updated successfully",
       },
       { status: 200 }
@@ -219,10 +265,14 @@ export async function PATCH(
     // });
     const updatedUser = { id: userId, ...validatedData };
 
-    // Invalidate cache - clear both user-specific and list caches
-    await redis.del(`user:${userId}`);
-    await redis.del(CACHE_KEY_USERS_LIST);
-    logger.info("Cache invalidated after user partial update", {
+    // Invalidate cache - clear both user-specific and list caches (non-blocking)
+    try {
+      await redis.del(`user:${userId}`);
+      await redis.del(CACHE_KEY_USERS_LIST);
+    } catch (err) {
+      logger.warn("Redis cache invalidation error, continuing", { error: err });
+    }
+    logger.info("Cache invalidation attempted after user partial update", {
       userId,
       fields: Object.keys(validatedData),
     });
@@ -282,10 +332,14 @@ export async function DELETE(
     // const deletedUser = await db.user.delete({ where: { id: userId } });
     const deletedUser = { id: userId, name: "", email: "" };
 
-    // Invalidate cache - clear both user-specific and list caches
-    await redis.del(`user:${userId}`);
-    await redis.del(CACHE_KEY_USERS_LIST);
-    logger.info("Cache invalidated after user deletion", { userId });
+    // Invalidate cache - clear both user-specific and list caches (non-blocking)
+    try {
+      await redis.del(`user:${userId}`);
+      await redis.del(CACHE_KEY_USERS_LIST);
+    } catch (err) {
+      logger.warn("Redis cache invalidation error, continuing", { error: err });
+    }
+    logger.info("Cache invalidation attempted after user deletion", { userId });
 
     logger.info("User deleted", { userId });
     return NextResponse.json(

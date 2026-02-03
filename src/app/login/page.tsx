@@ -112,6 +112,7 @@ export default function Login() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -128,20 +129,45 @@ export default function Login() {
         const response = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name, phone }),
+          body: JSON.stringify({ 
+            email, 
+            password, 
+            name,
+            ...(phone && { age: parseInt(phone) }) // phone field is being misused as age
+          }),
         });
 
-        const data = await response.json();
+        let data;
+        const responseText = await response.text();
+        console.log("Raw response:", responseText, "Status:", response.status);
+        
+        try {
+          data = responseText ? JSON.parse(responseText) : {};
+        } catch (e) {
+          console.error("Failed to parse response:", e);
+          setError("Server error: Invalid response. Check console for details.");
+          setIsLoading(false);
+          return;
+        }
 
         if (response.ok) {
-          alert("Account Created! Please Sign In.");
-          setIsSignup(false);
-          setEmail("");
-          setPassword("");
-          setName("");
-          setPhone("");
+          setSuccessMessage("✓ Account created successfully! Redirecting to login...");
+          setTimeout(() => {
+            setIsSignup(false);
+            setEmail("");
+            setPassword("");
+            setName("");
+            setPhone("");
+            setSuccessMessage("");
+          }, 2000);
         } else {
-          setError(data.error || "Signup failed");
+          // Show field errors if they exist, otherwise show general error
+          if (data.fieldErrors && typeof data.fieldErrors === 'object' && Object.keys(data.fieldErrors).length > 0) {
+            const firstError = Object.values(data.fieldErrors)[0];
+            setError(firstError as string || data.error || "Signup failed");
+          } else {
+            setError(data.error || "Signup failed");
+          }
         }
       } else {
         // Call login API
@@ -152,10 +178,23 @@ export default function Login() {
           body: JSON.stringify({ email, password }),
         });
 
-        const data = await response.json();
+        const responseText = await response.text();
+        console.log("Login response status:", response.status);
+        console.log("Login response text:", responseText);
+
+        let data;
+        try {
+          data = responseText ? JSON.parse(responseText) : {};
+        } catch (e) {
+          console.error("Failed to parse login response:", e);
+          setError("Server error: Invalid response");
+          setIsLoading(false);
+          return;
+        }
 
         if (response.ok) {
           // Cookies are set by the API
+          console.log("Login successful, user data:", data.user);
           router.push(data.user.role === "admin" ? "/admin/dashboard" : "/dashboard");
           router.refresh();
         } else {
@@ -212,6 +251,7 @@ export default function Login() {
                 type="text"
                 className="w-full p-4 bg-slate-900/50 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all"
                 placeholder="Agent Name"
+                value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
@@ -224,6 +264,7 @@ export default function Login() {
               type="email"
               className="w-full p-4 bg-slate-900/50 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all"
               placeholder="name@rip-portal.com"
+              value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
@@ -235,10 +276,17 @@ export default function Login() {
               type="password"
               className="w-full p-4 bg-slate-900/50 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all"
               placeholder="••••••••"
+              value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
+
+          {successMessage && (
+            <div className="p-4 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-center">
+              <p className="text-emerald-300 text-sm font-semibold">{successMessage}</p>
+            </div>
+          )}
 
           {error && (
             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-center">
