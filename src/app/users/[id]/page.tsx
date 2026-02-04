@@ -10,6 +10,8 @@ interface Ticket {
   status: string;
   travelDate: string;
   latestDepartureTime?: string;
+  seatSource?: string | null;
+  seatDestination?: string | null;
   route?: {
     source: string;
     destination: string;
@@ -117,16 +119,47 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
     return ticket.latestDepartureTime || ticket.route?.departureTime || ticket.travelDate;
   };
 
-  const activeTickets = user.tickets.filter(ticket =>
-    ticket.status === 'ACTIVE' && new Date(getTicketDate(ticket)) >= now
-  );
+  const activeTickets = user.tickets.filter(ticket => {
+    const dateStr = getTicketDate(ticket);
+    const date = new Date(dateStr);
+    const isValidDate = !isNaN(date.getTime());
 
-  const pastTickets = user.tickets.filter(ticket =>
-    ticket.status !== 'ACTIVE' || new Date(getTicketDate(ticket)) < now
-  );
+    if (ticket.status === 'ACTIVE') {
+      // If date is invalid, we still show it as active (fallback)
+      // If date is valid, it must be today or future
+      return !isValidDate || date >= now;
+    }
+    return false;
+  });
+
+  const pastTickets = user.tickets.filter(ticket => {
+    const dateStr = getTicketDate(ticket);
+    const date = new Date(dateStr);
+    const isValidDate = !isNaN(date.getTime());
+
+    if (ticket.status === 'ACTIVE') {
+      // Active tickets are only "past" if valid date AND date < now
+      return isValidDate && date < now;
+    }
+    // All non-active tickets (CANCELLED, etc.) are past
+    return true;
+  });
+
+  const getRouteLabel = (ticket: Ticket) => {
+    const source = ticket.seatSource || ticket.route?.source;
+    const destination = ticket.seatDestination || ticket.route?.destination;
+
+    if (source && destination) return `${source} → ${destination}`;
+    if (source) return `${source} → Destination`;
+    if (destination) return `Origin → ${destination}`;
+    return "Not Set";
+  };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return "Date Pending";
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "Date Pending";
+
     const day = date.getDate();
     const month = date.toLocaleString('default', { month: 'short' });
     const year = date.getFullYear();
@@ -272,12 +305,7 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
                     <div>
                       <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Route</p>
                       <p className="text-slate-200 font-medium">
-                        {ticket.route && ticket.route.source && ticket.route.destination
-                          ? `${ticket.route.source} → ${ticket.route.destination}`
-                          : ticket.route
-                            ? `${ticket.route.source || "N/A"} → ${ticket.route.destination || "N/A"}`
-                            : "Not Set"
-                        }
+                        {getRouteLabel(ticket)}
                       </p>
                     </div>
                   </div>

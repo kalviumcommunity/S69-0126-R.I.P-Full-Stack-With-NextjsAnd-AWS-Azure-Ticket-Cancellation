@@ -9,6 +9,16 @@ interface FieldErrors {
   [key: string]: string;
 }
 
+// Helper component for password requirements
+const Requirement = ({ label, met }: { label: string; met: boolean }) => (
+  <div className={`flex items-center gap-2 ${met ? "text-emerald-400" : "text-slate-500"}`}>
+    <div className={`w-3 h-3 rounded-full flex items-center justify-center text-[8px] font-bold ${met ? "bg-emerald-500 text-black" : "bg-slate-700 border border-slate-600"}`}>
+      {met && "✓"}
+    </div>
+    <span>{label}</span>
+  </div>
+);
+
 export default function Register() {
   console.log("=== REGISTER COMPONENT RENDERED (NEW VERSION) ===");
   const router = useRouter();
@@ -119,6 +129,14 @@ export default function Register() {
         setGeneralError("");
         if (data.fieldErrors && typeof data.fieldErrors === 'object' && Object.keys(data.fieldErrors).length > 0) {
           setFieldErrors(data.fieldErrors);
+
+          // CRITICAL FIX: If the error is with the password (which is hidden in this step),
+          // we MUST send the user back to Step 1 to fix it.
+          if (data.fieldErrors.password) {
+            setGeneralError("Password validation failed. Please choose a stronger password.");
+            setStep(1); // Go back to details step
+            return;
+          }
         } else {
           setGeneralError(data.error || "Signup failed");
         }
@@ -193,15 +211,28 @@ export default function Register() {
               error={fieldErrors.email}
             />
 
-            <FormInput
-              label="Password"
-              name="password"
-              type="password"
-              placeholder="At least 8 characters"
-              value={formData.password}
-              onChange={handleChange}
-              error={fieldErrors.password}
-            />
+            <div className="space-y-1">
+              <FormInput
+                label="Password"
+                name="password"
+                type="password"
+                placeholder="At least 8 characters"
+                value={formData.password}
+                onChange={handleChange}
+                error={fieldErrors.password}
+              />
+              {/* Password Strength Checklist */}
+              {formData.password && (
+                <div className="bg-slate-900/50 rounded-lg p-3 text-[10px] space-y-1 border border-slate-700/50 ml-1">
+                  <p className="font-bold text-slate-400 uppercase tracking-widest mb-1.5">Password Requirements</p>
+                  <Requirement label="At least 8 characters" met={formData.password.length >= 8} />
+                  <Requirement label="One uppercase letter" met={/[A-Z]/.test(formData.password)} />
+                  <Requirement label="One lowercase letter" met={/[a-z]/.test(formData.password)} />
+                  <Requirement label="One number" met={/[0-9]/.test(formData.password)} />
+                  <Requirement label="One special character" met={/[^A-Za-z0-9]/.test(formData.password)} />
+                </div>
+              )}
+            </div>
 
             <FormInput
               label="Age (Optional)"
@@ -215,7 +246,12 @@ export default function Register() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (() => {
+                // Check password validity
+                const p = formData.password;
+                if (!p) return true;
+                return p.length < 8 || !/[A-Z]/.test(p) || !/[a-z]/.test(p) || !/[0-9]/.test(p) || !/[^A-Za-z0-9]/.test(p);
+              })()}
               className="w-full mt-8 py-3 px-6 bg-gradient-to-r from-rose-500 via-rose-600 to-rose-700 hover:from-rose-600 hover:via-rose-700 hover:to-rose-800 text-white font-black uppercase tracking-wider rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-rose-500/20"
             >
               {loading ? (

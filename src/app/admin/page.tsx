@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 
 interface RefundRequest {
-  id: string;
+  id: string; // Ticket Number
+  originalId: number; // Database ID for Cancellation
   email: string;
   reason: string;
   status: 'pending' | 'approved' | 'declined';
@@ -12,46 +13,55 @@ interface RefundRequest {
 export default function AdminTerminal() {
   const [requests, setRequests] = useState<RefundRequest[]>([]);
 
+  const loadData = async () => {
+    try {
+      const res = await fetch("/api/admin/refunds");
+      if (res.ok) {
+        const data = await res.json();
+        console.log("Admin Fetched Data:", data); // DEBUG LOG
+        setRequests(data);
+      } else {
+        console.error("Fetch failed:", res.status);
+      }
+    } catch (err) {
+      console.error("Failed to load refunds", err);
+    }
+  };
+
   useEffect(() => {
-    const loadData = () => {
-      const savedRaw = localStorage.getItem("refund_requests");
-      const saved: RefundRequest[] = savedRaw ? JSON.parse(savedRaw) : [];
-      
-      const dummyData: RefundRequest[] = [
-        {
-          id: "TK-1102-RIP",
-          email: "legacy.admin@protocol.com",
-          reason: "Previously approved transaction.",
-          status: "approved" as const,
-          submittedAt: new Date().toISOString(),
-        },
-        {
-          id: "TK-0043-RIP",
-          email: "invalid.key@protocol.com",
-          reason: "Security handshake failure.",
-          status: "declined" as const,
-          submittedAt: new Date().toISOString(),
-        }
-      ];
-
-      const filteredSaved = saved.filter(s => !dummyData.some(d => d.id === s.id));
-      setRequests([...dummyData, ...filteredSaved]);
-    };
-
     loadData();
-    window.addEventListener('focus', loadData);
-    return () => window.removeEventListener('focus', loadData);
+    // Poll every 30 seconds for live monitoring
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  const updateStatus = (id: string, newStatus: 'approved' | 'declined') => {
-    setRequests((prev) => 
-      prev.map((req) => (req.id === id ? { ...req, status: newStatus } : req))
-    );
+  const updateStatus = async (cancellationId: number, newStatus: 'approved' | 'declined') => {
+    try {
+      // Optimistic update
+      setRequests((prev) =>
+        prev.map((req) => (req.originalId === cancellationId ? { ...req, status: newStatus } : req))
+      );
+
+      const res = await fetch("/api/admin/refunds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cancellationId, status: newStatus })
+      });
+
+      if (!res.ok) {
+        // Revert on failure (or just reload)
+        alert("Failed to update status");
+        loadData();
+      }
+    } catch (error) {
+      console.error("Error updating status:", error);
+      loadData();
+    }
   };
 
   const pending = requests.filter((r) => r.status === "pending");
   const approved = requests.filter((r) => r.status === "approved");
-  const declined = requests.filter((r) => r.status === "declined");
+  const declined = requests.filter((r) => r.status === "declined"); // declined = rejected in DB, mapped in API
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] p-8">
@@ -66,7 +76,7 @@ export default function AdminTerminal() {
             </p>
           </div>
           <div className="text-right">
-            <button 
+            <button
               onClick={() => { localStorage.clear(); window.location.reload(); }}
               className="text-[9px] border border-rose-500/30 text-rose-500 px-3 py-1 rounded hover:bg-rose-500 hover:text-white transition-all font-bold uppercase tracking-widest"
             >
@@ -90,33 +100,33 @@ export default function AdminTerminal() {
                   {/* FIXED QUOTES BELOW */}
                   <p className="text-slate-500 text-[10px] italic">&quot;{req.reason}&quot;</p>
                   <div className="flex gap-2 mt-5">
-                    <button onClick={() => updateStatus(req.id, 'approved')} className="flex-1 bg-emerald-600/10 text-emerald-500 text-[9px] font-black py-2 rounded-lg">APPROVE</button>
-                    <button onClick={() => updateStatus(req.id, 'declined')} className="flex-1 bg-rose-600/10 text-rose-500 text-[9px] font-black py-2 rounded-lg">DECLINE</button>
+                    <button onClick={() => updateStatus(req.originalId, 'approved')} className="flex-1 bg-emerald-600/10 text-emerald-500 text-[9px] font-black py-2 rounded-lg hover:bg-emerald-600 hover:text-white transition-all">APPROVE</button>
+                    <button onClick={() => updateStatus(req.originalId, 'declined')} className="flex-1 bg-rose-600/10 text-rose-500 text-[9px] font-black py-2 rounded-lg hover:bg-rose-600 hover:text-white transition-all">DECLINE</button>
                   </div>
                 </div>
               ))}
             </div>
           </section>
-          
+
           {/* Column 2 & 3 follow same pattern with unique keys */}
           <section className="space-y-6">
-             <h2 className="text-xs font-black uppercase text-emerald-500 border-b border-emerald-500/30 pb-4">Approved</h2>
-             {approved.map((req, index) => (
-               <div key={`${req.id}-app-${index}`} className="bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-2xl">
-                 <p className="text-white font-bold text-sm">{req.id}</p>
-                 <p className="text-slate-400 text-xs">{req.email}</p>
-               </div>
-             ))}
+            <h2 className="text-xs font-black uppercase text-emerald-500 border-b border-emerald-500/30 pb-4">Approved</h2>
+            {approved.map((req, index) => (
+              <div key={`${req.id}-app-${index}`} className="bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-2xl">
+                <p className="text-white font-bold text-sm">{req.id}</p>
+                <p className="text-slate-400 text-xs">{req.email}</p>
+              </div>
+            ))}
           </section>
 
           <section className="space-y-6">
-             <h2 className="text-xs font-black uppercase text-rose-500 border-b border-rose-500/30 pb-4">Declined</h2>
-             {declined.map((req, index) => (
-               <div key={`${req.id}-dec-${index}`} className="bg-rose-500/5 border border-rose-500/20 p-5 rounded-2xl">
-                 <p className="text-white/50 font-bold text-sm">{req.id}</p>
-                 <p className="text-slate-600 text-[10px] uppercase font-bold">Handshake Voided</p>
-               </div>
-             ))}
+            <h2 className="text-xs font-black uppercase text-rose-500 border-b border-rose-500/30 pb-4">Declined</h2>
+            {declined.map((req, index) => (
+              <div key={`${req.id}-dec-${index}`} className="bg-rose-500/5 border border-rose-500/20 p-5 rounded-2xl">
+                <p className="text-white/50 font-bold text-sm">{req.id}</p>
+                <p className="text-slate-600 text-[10px] uppercase font-bold">Ticket Misuse</p>
+              </div>
+            ))}
           </section>
         </div>
       </div>

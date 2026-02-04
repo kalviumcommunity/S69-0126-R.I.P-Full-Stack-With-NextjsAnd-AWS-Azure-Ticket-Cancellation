@@ -84,6 +84,8 @@ export async function GET(
     const ticketsWithLatestDates = await Promise.all(user.tickets.map(async (ticket) => {
       let latestDepartureTime = ticket.route?.departureTime;
       let busNumber = null;
+      let seatSource: string | null = null;
+      let seatDestination: string | null = null;
 
       // 1. Try to get bus number from route source
       if (ticket.route?.source?.startsWith("BUS-")) {
@@ -102,6 +104,34 @@ export async function GET(
 
         if (seat?.bus) {
           busNumber = seat.bus.busNumber;
+        }
+
+        if (seat) {
+          seatSource = seat.source || null;
+          seatDestination = seat.destination || null;
+        }
+      }
+
+      // If we have a bus number, try to get seat by bus + seatNumber (more reliable)
+      if (busNumber) {
+        const bus = await prisma.bus.findUnique({
+          where: { busNumber: busNumber }
+        });
+
+        if (bus) {
+          const seatByBus = await prisma.seat.findUnique({
+            where: {
+              busId_seatNumber: {
+                busId: bus.id,
+                seatNumber: ticket.seatNumber
+              }
+            }
+          });
+
+          if (seatByBus) {
+            seatSource = seatByBus.source || seatSource;
+            seatDestination = seatByBus.destination || seatDestination;
+          }
         }
       }
 
@@ -122,7 +152,9 @@ export async function GET(
 
       return {
         ...ticket,
-        latestDepartureTime
+        latestDepartureTime,
+        seatSource,
+        seatDestination
       };
     }));
 

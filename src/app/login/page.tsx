@@ -105,6 +105,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SignInButton } from "@clerk/nextjs";
 
+// Helper component for password requirements
+const Requirement = ({ label, met }: { label: string; met: boolean }) => (
+  <div className={`flex items-center gap-2 ${met ? "text-emerald-400" : "text-slate-500"}`}>
+    <div className={`w-3 h-3 rounded-full flex items-center justify-center text-[8px] font-bold ${met ? "bg-emerald-500 text-black" : "bg-slate-700 border border-slate-600"}`}>
+      {met && "✓"}
+    </div>
+    <span>{label}</span>
+  </div>
+);
+
 export default function Login() {
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState("");
@@ -130,6 +140,14 @@ export default function Login() {
     try {
       if (isSignup) {
         if (step === 1) {
+          // Validate password before sending OTP
+          const p = password;
+          if (p.length < 8 || !/[A-Z]/.test(p) || !/[a-z]/.test(p) || !/[0-9]/.test(p) || !/[^A-Za-z0-9]/.test(p)) {
+            setError("Password validation failed. Please check requirements.");
+            setIsLoading(false);
+            return;
+          }
+
           // Step 1: Send OTP
           const response = await fetch("/api/auth/send-otp", {
             method: "POST",
@@ -328,6 +346,18 @@ export default function Login() {
                   required
                 />
               </div>
+
+              {/* Password Strength Checklist - Only for Signup */}
+              {isSignup && password && (
+                <div className="bg-slate-900/50 rounded-lg p-3 text-[10px] space-y-1 border border-slate-700/50 ml-1">
+                  <p className="font-bold text-slate-400 uppercase tracking-widest mb-1.5">Password Requirements</p>
+                  <Requirement label="At least 8 characters" met={password.length >= 8} />
+                  <Requirement label="One uppercase letter" met={/[A-Z]/.test(password)} />
+                  <Requirement label="One lowercase letter" met={/[a-z]/.test(password)} />
+                  <Requirement label="One number" met={/[0-9]/.test(password)} />
+                  <Requirement label="One special character" met={/[^A-Za-z0-9]/.test(password)} />
+                </div>
+              )}
             </>
           )}
 
@@ -344,7 +374,10 @@ export default function Login() {
           )}
 
           <button
-            disabled={isLoading}
+            disabled={isLoading || (isSignup && (() => {
+              if (!password) return false; // Allow empty initially (HTML required catches it)
+              return password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password);
+            })())}
             className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 text-white py-4 rounded-2xl font-bold uppercase text-sm tracking-[0.2em] transition-all shadow-lg shadow-rose-900/20 active:scale-[0.98]"
           >
             {isLoading ? "Processing..." : isSignup ? (step === 2 ? "Verify & Create Account" : "Send Verification Code") : "Verify & Entry"}
