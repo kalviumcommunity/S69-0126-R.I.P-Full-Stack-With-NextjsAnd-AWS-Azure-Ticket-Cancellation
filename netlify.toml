@@ -1,0 +1,14 @@
+[build]
+command = "npm run build"
+publish = ".next/standalone"
+environment = { NODE_VERSION = "20" }
+
+[[redirects]]
+from = "/*"
+to = "/404"
+status = 404
+
+[[redirects]]
+from = "/"
+to = "/index.html"
+status = 200
