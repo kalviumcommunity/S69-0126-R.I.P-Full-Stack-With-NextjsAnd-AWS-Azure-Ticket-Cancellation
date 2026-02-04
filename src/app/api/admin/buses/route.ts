@@ -19,7 +19,7 @@ export async function GET(_request: NextRequest) {
         success: true,
         data: buses,
       },
-      { 
+      {
         status: 200,
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
@@ -103,9 +103,10 @@ export async function POST(request: NextRequest) {
       totalSeats = 40,
       leftSeatsPerRow = 2,
       rightSeatsPerRow = 3,
+      travelDate,
     } = body;
 
-    console.log("Bus creation request:", { busNumber, totalSeats, leftSeatsPerRow, rightSeatsPerRow });
+    console.log("Bus creation request:", { busNumber, totalSeats, leftSeatsPerRow, rightSeatsPerRow, travelDate });
 
     if (!busNumber) {
       return NextResponse.json(
@@ -186,6 +187,39 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("Seats created successfully for bus:", busNumber);
+
+    // Create BusRoute if travel date is provided
+    if (travelDate) {
+      try {
+        // Find an admin user to be the operator
+        const admin = await prisma.user.findFirst({
+          where: { role: "ADMIN" }
+        }) || await prisma.user.findFirst();
+
+        if (admin) {
+          const departureDate = new Date(travelDate);
+          const arrivalDate = new Date(departureDate.getTime() + 3600000); // 1 hour later
+
+          await prisma.busRoute.create({
+            data: {
+              operatorId: admin.id,
+              source: `BUS-${busNumber}`, // Use bus number as unique identifier
+              destination: "Destination",
+              departureTime: departureDate,
+              arrivalTime: arrivalDate,
+              totalSeats: totalSeats,
+              availableSeats: totalSeats,
+              basePrice: 500,
+            },
+          });
+
+          console.log("BusRoute created for bus:", busNumber, "with travel date:", travelDate);
+        }
+      } catch (routeError) {
+        console.warn("Failed to create BusRoute (non-blocking):", routeError);
+        // Don't fail the bus creation if route creation fails
+      }
+    }
 
     const busWithSeats = await prisma.bus.findUnique({
       where: { id: bus.id },

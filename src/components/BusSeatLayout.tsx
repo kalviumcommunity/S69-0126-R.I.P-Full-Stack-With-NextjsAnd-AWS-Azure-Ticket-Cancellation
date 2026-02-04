@@ -1,6 +1,6 @@
 "use client";
 
-import { } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 
 interface BusSeatLayoutProps {
@@ -11,6 +11,9 @@ interface BusSeatLayoutProps {
   selectedSeatNumber?: number | null;
   bookedSeats?: string[];
   allSeats?: Array<{ id: number; seatNumber: string; position: string; status: string }>;
+  onSeatHover?: (seatNumber: string | null) => void;
+  hoveredSeat?: string | null;
+  seatUserMap?: Record<string, { name: string; email: string }>;
 }
 
 export default function BusSeatLayout({
@@ -21,12 +24,32 @@ export default function BusSeatLayout({
   selectedSeatNumber,
   bookedSeats = [],
   allSeats = [],
+  onSeatHover,
+  hoveredSeat,
+  seatUserMap = {},
 }: BusSeatLayoutProps) {
+  const [popupPosition, setPopupPosition] = useState<{ x: number; y: number } | null>(null);
+
   return (
-    <div className="flex flex-col items-center gap-6">
+    <div className="flex flex-col items-center gap-6 relative">
       <h2 className="text-xl font-semibold">Bus Seat Layout</h2>
 
-      <div className="rounded-2xl bg-gray-100 p-6 shadow-lg">
+      <div className="rounded-2xl bg-gray-100 p-6 shadow-lg relative">
+        {/* Popup tooltip */}
+        {hoveredSeat && seatUserMap[hoveredSeat] && popupPosition && (
+          <div
+            className="absolute bg-emerald-500 text-white rounded-lg p-2 shadow-lg z-50 text-sm font-bold whitespace-nowrap pointer-events-none"
+            style={{
+              left: `${popupPosition.x}px`,
+              top: `${popupPosition.y}px`,
+              transform: "translate(-50%, -100%)",
+              marginTop: "-8px",
+            }}
+          >
+            <div className="font-bold">{seatUserMap[hoveredSeat].name}</div>
+            <div className="text-xs">{seatUserMap[hoveredSeat].email}</div>
+          </div>
+        )}
         <div className="flex flex-col gap-4">
           {(() => {
             // Sort all seats by their numeric value for proper ordering
@@ -57,10 +80,13 @@ export default function BusSeatLayout({
                           <Seat
                             key={current}
                             number={current}
+                            seatNumber={seatWithPos}
                             position={seatPos}
                             selected={selectedSeatNumber === current}
                             booked={isBooked}
                             onClick={() => !isBooked && onSelectSeat(current)}
+                            onHover={onSeatHover}
+                            onHoverPosition={setPopupPosition}
                           />
                         );
                       })}
@@ -81,10 +107,13 @@ export default function BusSeatLayout({
                           <Seat
                             key={current}
                             number={current}
+                            seatNumber={seatWithPos}
                             position={seatPos}
                             selected={selectedSeatNumber === current}
                             booked={isBooked}
                             onClick={() => !isBooked && onSelectSeat(current)}
+                            onHover={onSeatHover}
+                            onHoverPosition={setPopupPosition}
                           />
                         );
                       })}
@@ -108,10 +137,13 @@ export default function BusSeatLayout({
                         <Seat
                           key={seat.id}
                           number={seatNum}
+                          seatNumber={seat.seatNumber}
                           position={seat.position as string}
                           selected={selectedSeatNumber === seatNum}
                           booked={isBooked || seat.status === "BOOKED"}
                           onClick={() => !isBooked && seat.status === "AVAILABLE" && onSelectSeat(seatNum)}
+                          onHover={onSeatHover}
+                          onHoverPosition={setPopupPosition}
                         />
                       );
                     })}
@@ -129,10 +161,13 @@ export default function BusSeatLayout({
                         <Seat
                           key={seat.id}
                           number={seatNum}
+                          seatNumber={seat.seatNumber}
                           position={seat.position as string}
                           selected={selectedSeatNumber === seatNum}
                           booked={isBooked || seat.status === "BOOKED"}
                           onClick={() => !isBooked && seat.status === "AVAILABLE" && onSelectSeat(seatNum)}
+                          onHover={onSeatHover}
+                          onHoverPosition={setPopupPosition}
                         />
                       );
                     })}
@@ -159,15 +194,41 @@ interface SeatProps {
   onClick: () => void;
   position?: string;
   booked?: boolean;
+  seatNumber?: string;
+  onHover?: (seatNumber: string | null) => void;
+  onHoverPosition?: (pos: { x: number; y: number } | null) => void;
 }
 
-function Seat({ number, selected, onClick, booked }: SeatProps) {
+function Seat({ number, selected, onClick, booked, seatNumber, onHover, onHoverPosition }: SeatProps) {
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    if (booked && seatNumber) {
+      onHover?.(seatNumber);
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const parent = (e.currentTarget as HTMLElement).parentElement?.parentElement?.parentElement;
+      if (parent) {
+        const parentRect = parent.getBoundingClientRect();
+        onHoverPosition?.({
+          x: rect.left - parentRect.left + rect.width / 2,
+          y: rect.top - parentRect.top,
+        });
+      }
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (booked) {
+      onHover?.(null);
+      onHoverPosition?.(null);
+    }
+  };
+
   return (
     <motion.button
       whileHover={!booked ? { scale: 1.1 } : {}}
       whileTap={!booked ? { scale: 0.95 } : {}}
-      onClick={onClick}
-      disabled={booked}
+      onClick={!booked ? onClick : undefined}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       className={`h-12 w-12 rounded-xl text-sm font-medium shadow-md transition-all
         ${booked
           ? "bg-gray-400 text-gray-600 cursor-not-allowed"

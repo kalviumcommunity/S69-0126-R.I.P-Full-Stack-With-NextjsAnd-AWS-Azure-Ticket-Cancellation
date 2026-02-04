@@ -5,6 +5,7 @@ import { Pool } from "pg";
 // Create PostgreSQL connection pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }, // Required for Render/Neon and other remote DBs
 });
 
 // Create Prisma adapter
@@ -49,7 +50,7 @@ export const createUser = async (params: {
     admin: "ADMIN",
     user: "PASSENGER",  // "user" maps to PASSENGER in the database
   } as const;
-  
+
   return await prisma.user.create({
     data: {
       name: params.name,

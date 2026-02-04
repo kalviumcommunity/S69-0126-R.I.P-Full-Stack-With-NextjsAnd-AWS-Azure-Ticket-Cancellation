@@ -45,7 +45,44 @@ export async function PUT(
       }
     }
 
-    let { busNumber, totalSeats } = await request.json();
+    let { busNumber, totalSeats, status } = await request.json();
+
+    // If only status is being updated (for cancellation)
+    if (status && !busNumber && !totalSeats) {
+      const bus = await prisma.bus.update({
+        where: { id: parseInt(params.id) },
+        data: { status },
+        include: { seats: true },
+      });
+
+      // If bus status is CANCELLED, verify and cancel all associated tickets
+      if (status === "CANCELLED") {
+        const routeSource = `BUS-${bus.busNumber}`;
+        const route = await prisma.busRoute.findFirst({
+          where: { source: routeSource }
+        });
+
+        if (route) {
+          await prisma.ticket.updateMany({
+            where: {
+              routeId: route.id,
+              status: "ACTIVE"
+            },
+            data: { status: "CANCELLED" }
+          });
+          console.log(`Cancelled tickets for bus ${bus.busNumber} (Route ID: ${route.id})`);
+        }
+      }
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Bus status updated successfully",
+          data: bus,
+        },
+        { status: 200 }
+      );
+    }
 
     if (!busNumber || !totalSeats) {
       return NextResponse.json(
@@ -79,12 +116,19 @@ export async function PUT(
     // Remaining 4 numbers
     busNumber = `${letters.slice(0, 2)}-${numbers.slice(0, 2)}-${letters.slice(2)}-${numbers.slice(2)}`;
 
+    const updateData: any = {
+      busNumber,
+      totalSeats,
+    };
+
+    // Include status if provided
+    if (status) {
+      updateData.status = status;
+    }
+
     const bus = await prisma.bus.update({
       where: { id: parseInt(params.id) },
-      data: {
-        busNumber,
-        totalSeats,
-      },
+      data: updateData,
       include: {
         seats: true,
       },

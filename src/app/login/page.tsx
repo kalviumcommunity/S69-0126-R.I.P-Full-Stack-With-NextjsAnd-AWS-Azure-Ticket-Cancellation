@@ -118,34 +118,68 @@ export default function Login() {
 
 
 
+  const [step, setStep] = useState(1); // 1: Details, 2: OTP
+  const [otp, setOtp] = useState("");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    setSuccessMessage("");
 
     try {
       if (isSignup) {
-        // Call signup API
+        if (step === 1) {
+          // Step 1: Send OTP
+          const response = await fetch("/api/auth/send-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, name }),
+          });
+
+          let data;
+          const text = await response.text();
+          try {
+            data = JSON.parse(text);
+          } catch (err) {
+            console.error("Failed to parse response:", text);
+            setError("Server returned an error (HTML). Check console.");
+            setIsLoading(false);
+            return;
+          }
+
+          if (!response.ok) {
+            setError(data.error || "Failed to send OTP");
+            setIsLoading(false);
+            return;
+          }
+
+          setStep(2);
+          setSuccessMessage("OTP sent to your email!");
+          setIsLoading(false);
+          return;
+        }
+
+        // Step 2: Verify OTP and Signup
         const response = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            email, 
-            password, 
+          body: JSON.stringify({
+            email,
+            password,
             name,
-            ...(phone && { age: parseInt(phone) }) // phone field is being misused as age
+            otp,
+            ...(phone && { age: parseInt(phone) })
           }),
         });
 
         let data;
         const responseText = await response.text();
-        console.log("Raw response:", responseText, "Status:", response.status);
-        
+
         try {
           data = responseText ? JSON.parse(responseText) : {};
         } catch (e) {
-          console.error("Failed to parse response:", e);
-          setError("Server error: Invalid response. Check console for details.");
+          setError("Server error: Invalid response.");
           setIsLoading(false);
           return;
         }
@@ -154,6 +188,8 @@ export default function Login() {
           setSuccessMessage("✓ Account created successfully! Redirecting to login...");
           setTimeout(() => {
             setIsSignup(false);
+            setStep(1);
+            setOtp("");
             setEmail("");
             setPassword("");
             setName("");
@@ -161,7 +197,6 @@ export default function Login() {
             setSuccessMessage("");
           }, 2000);
         } else {
-          // Show field errors if they exist, otherwise show general error
           if (data.fieldErrors && typeof data.fieldErrors === 'object' && Object.keys(data.fieldErrors).length > 0) {
             const firstError = Object.values(data.fieldErrors)[0];
             setError(firstError as string || data.error || "Signup failed");
@@ -179,22 +214,16 @@ export default function Login() {
         });
 
         const responseText = await response.text();
-        console.log("Login response status:", response.status);
-        console.log("Login response text:", responseText);
-
         let data;
         try {
           data = responseText ? JSON.parse(responseText) : {};
         } catch (e) {
-          console.error("Failed to parse login response:", e);
           setError("Server error: Invalid response");
           setIsLoading(false);
           return;
         }
 
         if (response.ok) {
-          // Cookies are set by the API
-          console.log("Login successful, user data:", data.user);
           router.push(data.user.role === "admin" ? "/admin/dashboard" : "/dashboard");
           router.refresh();
         } else {
@@ -244,43 +273,63 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {isSignup && (
+          {isSignup && step === 2 ? (
             <div className="space-y-2">
-              <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Full Name</label>
+              <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                Verification Code
+              </label>
               <input
                 type="text"
-                className="w-full p-4 bg-slate-900/50 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all"
-                placeholder="Agent Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                className="w-full p-4 bg-slate-900/50 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all text-center tracking-[0.5em] font-mono text-xl"
+                placeholder="000000"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
                 required
               />
+              <p className="text-center text-[10px] text-slate-400">Sent to {email}</p>
             </div>
+          ) : (
+            <>
+              {isSignup && (
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Full Name</label>
+                  <input
+                    type="text"
+                    className="w-full p-4 bg-slate-900/50 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all"
+                    placeholder="Agent Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Network Identifier</label>
+                <input
+                  type="email"
+                  className="w-full p-4 bg-slate-900/50 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all"
+                  placeholder="name@rip-portal.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Security Key</label>
+                <input
+                  type="password"
+                  className="w-full p-4 bg-slate-900/50 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </>
           )}
-
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Network Identifier</label>
-            <input
-              type="email"
-              className="w-full p-4 bg-slate-900/50 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all"
-              placeholder="name@rip-portal.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Security Key</label>
-            <input
-              type="password"
-              className="w-full p-4 bg-slate-900/50 border border-slate-700 rounded-2xl text-white outline-none focus:border-rose-500 transition-all"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
 
           {successMessage && (
             <div className="p-4 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-center">
@@ -298,7 +347,7 @@ export default function Login() {
             disabled={isLoading}
             className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 text-white py-4 rounded-2xl font-bold uppercase text-sm tracking-[0.2em] transition-all shadow-lg shadow-rose-900/20 active:scale-[0.98]"
           >
-            {isLoading ? "Verifying..." : isSignup ? "Initialize Account" : "Verify & Entry"}
+            {isLoading ? "Processing..." : isSignup ? (step === 2 ? "Verify & Create Account" : "Send Verification Code") : "Verify & Entry"}
           </button>
         </form>
 

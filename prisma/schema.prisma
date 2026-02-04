@@ -180,17 +180,19 @@ model AuditLog {
 
 /// Buses represent physical buses with seat configurations
 model Bus {
-  id               Int      @id @default(autoincrement())
-  busNumber        String   @unique
+  id               Int       @id @default(autoincrement())
+  busNumber        String    @unique
   totalSeats       Int
-  leftSeatsPerRow  Int      @default(2)
-  rightSeatsPerRow Int      @default(3)
+  leftSeatsPerRow  Int       @default(2)
+  rightSeatsPerRow Int       @default(3)
   totalRows        Int
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  status           BusStatus @default(ACTIVE)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   seats            Seat[]
 
   @@index([busNumber])
+  @@index([status])
 }
 
 /// Seats represent individual seats in a bus
@@ -262,4 +264,10 @@ enum SeatStatus {
 enum SeatPosition {
   LEFT
   RIGHT
+}
+
+enum BusStatus {
+  ACTIVE
+  CANCELLED
+  COMPLETED
 }

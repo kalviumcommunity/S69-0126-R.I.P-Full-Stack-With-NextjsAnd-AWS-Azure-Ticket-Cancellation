@@ -98,6 +98,14 @@ export async function POST(request: NextRequest) {
         path: "/",
       });
 
+      response.cookies.set("user_id", "0", {
+        httpOnly: false, // Allow client JS to read this
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 24 * 60 * 60,
+        path: "/",
+      });
+
       logger.info("Admin login successful", { email: ADMIN_EMAIL });
       return response;
     }
@@ -194,6 +202,14 @@ export async function POST(request: NextRequest) {
 
     // Public cookie for UI state
     response.cookies.set("role", role, {
+      httpOnly: false, // Allow client JS to read this
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60,
+      path: "/",
+    });
+
+    response.cookies.set("user_id", user.id.toString(), {
       httpOnly: false, // Allow client JS to read this
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
