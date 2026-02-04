@@ -194,7 +194,7 @@ export default function AdminTerminal() {
     <main className="min-h-screen bg-[#0a0a0a] p-8">
       {/* Notification Toast */}
       {notification.isOpen && (
-        <div className="fixed bottom-8 right-8 z-[9999] animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed bottom-8 right-8 z-9999 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className={`rounded-xl border px-6 py-4 shadow-2xl flex items-center gap-3 ${
             notification.type === 'success' 
               ? 'bg-emerald-900/30 border-emerald-500/50' 

@@ -258,7 +258,7 @@ export default function Login() {
 
   return (
     <main className="relative flex items-center justify-center min-h-[90vh] bg-[#0F172A] overflow-hidden p-6">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-rose-500/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-125 h-125 bg-rose-500/5 blur-[120px] rounded-full pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-md p-8 md:p-12 bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-[2.5rem] shadow-2xl">
         <header className="mb-8 text-center">
@@ -285,9 +285,9 @@ export default function Login() {
           </button>
         </SignInButton>
         <div className="flex items-center gap-4 mb-8">
-          <div className="h-px bg-slate-700 flex-grow" />
+          <div className="h-px bg-slate-700 grow" />
           <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Or Protocol Key</span>
-          <div className="h-px bg-slate-700 flex-grow" />
+          <div className="h-px bg-slate-700 grow" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">

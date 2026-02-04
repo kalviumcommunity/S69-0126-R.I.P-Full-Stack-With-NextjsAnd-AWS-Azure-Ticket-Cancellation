@@ -13,23 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractAndVerifyToken, requirePermission } from "@/lib/rbac";
 import { handleError, NotFoundError } from "@/lib/errorHandler";
 import { logger } from "@/lib/logger";
-import { bookings } from "../route";
-
-// Booking interface
-interface Booking {
-  id: number;
-  userId: number;
-  busRouteId: number;
-  seatNumber: number;
-  passengerName: string;
-  passengerPhone: string;
-  status: string;
-  bookingDate: string;
-  createdAt: string;
-  updatedAt: string;
-  cancelledAt?: string;
-  cancelledBy?: number;
-}
+import prisma from "@/lib/db";
 
 /**
  * GET /api/admin/bookings/[id]
@@ -52,9 +36,15 @@ export async function GET(
     if (authError) return authError;
 
     const bookingId = parseInt(id);
-    const booking = bookings.find((b: Booking) => b.id === bookingId);
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: bookingId },
+      include: {
+        user: true,
+        seat: { include: { busRoute: true } }
+      }
+    });
 
-    if (!booking) {
+    if (!ticket) {
       throw new NotFoundError("Booking not found");
     }
 
@@ -63,7 +53,7 @@ export async function GET(
     return NextResponse.json(
       {
         success: true,
-        data: { booking },
+        data: { booking: ticket },
         message: "Booking details retrieved successfully",
       },
       { status: 200 }
@@ -94,15 +84,15 @@ export async function DELETE(
     if (authError) return authError;
 
     const bookingId = parseInt(id);
-    const bookingIndex = bookings.findIndex((b: Booking) => b.id === bookingId);
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: bookingId }
+    });
 
-    if (bookingIndex === -1) {
+    if (!ticket) {
       throw new NotFoundError("Booking not found");
     }
 
-    const booking = bookings[bookingIndex];
-
-    if (booking.status === "CANCELLED") {
+    if (ticket.status === "cancelled") {
       return NextResponse.json(
         {
           success: false,
@@ -113,24 +103,28 @@ export async function DELETE(
       );
     }
 
-    // Update booking status
-    bookings[bookingIndex] = {
-      ...booking,
-      status: "CANCELLED",
-      cancelledAt: new Date().toISOString(),
-      cancelledBy: user?.id,
-      updatedAt: new Date().toISOString(),
-    };
+    // Update ticket status
+    const updated = await prisma.ticket.update({
+      where: { id: bookingId },
+      data: {
+        status: "cancelled",
+        updatedAt: new Date()
+      },
+      include: {
+        user: true,
+        seat: { include: { busRoute: true } }
+      }
+    });
 
     logger.info(`Admin ${user?.email} cancelled booking ${bookingId}`, {
       bookingId,
-      originalUserId: booking.userId,
+      originalUserId: ticket.userId,
     });
 
     return NextResponse.json(
       {
         success: true,
-        data: { booking: bookings[bookingIndex] },
+        data: { booking: updated },
         message: "Booking cancelled successfully",
       },
       { status: 200 }

@@ -5,27 +5,6 @@ import { logger } from "@/lib/logger";
 import { z } from "zod";
 import prisma from "@/lib/db";
 
-// Import and re-export shared bookings array
-import { bookings } from "../../bookings/route";
-export { bookings };
-
-// Booking interface
-interface Booking {
-  id: number;
-  userId: number;
-  busRouteId: number;
-  seatNumber: number;
-  passengerName: string;
-  passengerPhone: string;
-  status: string;
-  bookingDate: string;
-  createdAt: string;
-  updatedAt: string;
-  cancelledAt?: string;
-  cancelledBy?: number;
-  createdBy?: number;
-}
-
 // Validation schema for creating booking
 const createBookingSchema = z.object({
   userId: z.number().int().positive("User ID is required"),
@@ -34,8 +13,6 @@ const createBookingSchema = z.object({
   passengerName: z.string().min(1, "Passenger name is required"),
   passengerPhone: z.string().min(10, "Valid phone number is required"),
 });
-
-let nextBookingId = 1;
 
 /**
  * GET /api/admin/bookings
@@ -55,33 +32,29 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId");
-    const busRouteId = searchParams.get("busRouteId");
+    const routeId = searchParams.get("busRouteId");
 
-    let filteredBookings = bookings;
+    const where: any = {};
+    if (userId) where.userId = parseInt(userId);
+    if (routeId) where.routeId = parseInt(routeId);
 
-    // Filter by user if specified
-    if (userId) {
-      filteredBookings = filteredBookings.filter(
-        (b: Booking) => b.userId === parseInt(userId)
-      );
-    }
-
-    // Filter by bus route if specified
-    if (busRouteId) {
-      filteredBookings = filteredBookings.filter(
-        (b: Booking) => b.busRouteId === parseInt(busRouteId)
-      );
-    }
+    const tickets = await prisma.ticket.findMany({
+      where,
+      include: {
+        user: true,
+        seat: { include: { busRoute: true } }
+      }
+    });
 
     logger.info(`Admin ${user?.email} fetched bookings`, {
-      total: filteredBookings.length,
-      filters: { userId, busRouteId },
+      total: tickets.length,
+      filters: { userId, routeId },
     });
 
     return NextResponse.json(
       {
         success: true,
-        data: { bookings: filteredBookings, total: filteredBookings.length },
+        data: { bookings: tickets, total: tickets.length },
         message: "Bookings retrieved successfully",
       },
       { status: 200 }
@@ -107,18 +80,19 @@ export async function POST(req: NextRequest) {
     const data = createBookingSchema.parse(body);
 
     // Check if seat is already booked
-    const existingBooking = bookings.find(
-      (b: Booking) =>
-        b.busRouteId === data.busRouteId &&
-        b.seatNumber === data.seatNumber &&
-        b.status === "ACTIVE"
-    );
+    const existingTicket = await prisma.ticket.findFirst({
+      where: {
+        routeId: data.busRouteId,
+        seatNumber: data.seatNumber.toString(),
+        status: { not: "cancelled" }
+      }
+    });
 
-    if (existingBooking) {
+    if (existingTicket) {
       throw new ValidationError("Seat is already booked");
     }
 
-    // Also create in Prisma database
+    // Create ticket in Prisma database
     const ticketNumber = `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
     
     const ticket = await prisma.ticket.create({
@@ -127,35 +101,27 @@ export async function POST(req: NextRequest) {
         userId: data.userId,
         routeId: data.busRouteId,
         seatNumber: data.seatNumber.toString(),
-        status: "ACTIVE",
-        purchasePrice: 0, // This should come from route pricing
+        status: "active",
+        purchasePrice: 0,
         travelDate: new Date(),
       },
+      include: {
+        user: true,
+        seat: { include: { busRoute: true } }
+      }
     });
 
-    const newBooking = {
-      id: nextBookingId++,
-      ...data,
-      status: "ACTIVE",
-      bookingDate: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      createdBy: user?.id,
-    };
-
-    bookings.push(newBooking);
-
-    logger.info(`Admin ${user?.email} created booking ${newBooking.id}`, {
-      bookingId: newBooking.id,
-      userId: newBooking.userId,
-      busRouteId: newBooking.busRouteId,
+    logger.info(`Admin ${user?.email} created booking`, {
       ticketId: ticket.id,
+      userId: data.userId,
+      busRouteId: data.busRouteId,
+      ticketNumber,
     });
 
     return NextResponse.json(
       {
         success: true,
-        data: { booking: newBooking, ticket },
+        data: { booking: ticket },
         message: "Booking created successfully",
       },
       { status: 201 }

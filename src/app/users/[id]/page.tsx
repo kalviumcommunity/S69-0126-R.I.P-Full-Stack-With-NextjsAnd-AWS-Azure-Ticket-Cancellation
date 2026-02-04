@@ -186,7 +186,7 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
         <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
 
           {/* Top Banner Accent */}
-          <div className={`h-32 w-full bg-gradient-to-r ${isAdmin ? 'from-blue-600 to-indigo-900' : 'from-rose-600 to-orange-900'} opacity-50`} />
+          <div className={`h-32 w-full bg-linear-to-r ${isAdmin ? 'from-blue-600 to-indigo-900' : 'from-rose-600 to-orange-900'} opacity-50`} />
 
           <div className="px-8 pb-10 -mt-16 relative">
             {/* Avatar */}

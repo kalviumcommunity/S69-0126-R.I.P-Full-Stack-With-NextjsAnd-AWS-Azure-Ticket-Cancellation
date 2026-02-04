@@ -219,7 +219,7 @@ export default function UserDashboard() {
     <main className="min-h-screen bg-[#0a0a0a] text-gray-100 p-8">
       {/* Notification Toast */}
       {notification.isOpen && (
-        <div className="fixed bottom-8 right-8 z-[9999] animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed bottom-8 right-8 z-9999 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className={`rounded-xl border px-6 py-4 shadow-2xl flex items-center gap-3 ${
             notification.type === 'success' 
               ? 'bg-emerald-900/30 border-emerald-500/50' 
@@ -343,7 +343,7 @@ export default function UserDashboard() {
           </div>
 
           {activeTickets.length === 0 ? (
-            <div className="border-2 border-dashed border-slate-800 rounded-[2rem] p-12 text-center">
+            <div className="border-2 border-dashed border-slate-800 rounded-4xl p-12 text-center">
               <p className="text-slate-600 font-bold uppercase tracking-widest text-xs">
                 No active tickets found.
               </p>
@@ -404,7 +404,7 @@ export default function UserDashboard() {
           </div>
 
           {pastTickets.length === 0 ? (
-            <div className="border-2 border-dashed border-slate-800 rounded-[2rem] p-12 text-center">
+            <div className="border-2 border-dashed border-slate-800 rounded-4xl p-12 text-center">
               <p className="text-slate-600 font-bold uppercase tracking-widest text-xs">
                 No past tickets found.
               </p>
@@ -460,7 +460,7 @@ export default function UserDashboard() {
           </div>
 
           {myRequests.length === 0 ? (
-            <div className="border-2 border-dashed border-slate-800 rounded-[2rem] p-12 text-center">
+            <div className="border-2 border-dashed border-slate-800 rounded-4xl p-12 text-center">
               <p className="text-slate-600 font-bold uppercase tracking-widest text-xs">
                 No refund requests found.
               </p>

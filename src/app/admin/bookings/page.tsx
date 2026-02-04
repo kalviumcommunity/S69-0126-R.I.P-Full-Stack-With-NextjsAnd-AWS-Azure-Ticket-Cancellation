@@ -1215,7 +1215,7 @@ export default function AdminBookingsPage() {
                   <>
                     <div className="flex justify-between items-start mb-4 sm:mb-6 gap-4">
                       <div className="min-w-0 flex-1">
-                        <h3 className="text-lg sm:text-xl font-black text-white uppercase italic tracking-tighter break-words">
+                        <h3 className="text-lg sm:text-xl font-black text-white uppercase italic tracking-tighter wrap-break-word">
                           <span className="text-emerald-500">{viewingBus.busNumber}</span>
                         </h3>
                         <p className="text-[10px] sm:text-xs text-slate-400 font-mono mt-1 sm:mt-2">ID: {viewingBus.id} | {viewingBus.totalSeats} Seats</p>
@@ -1231,7 +1231,7 @@ export default function AdminBookingsPage() {
                           setViewingBus(null);
                           setHoveredSeatInModal(null);
                         }}
-                        className="text-slate-400 hover:text-white text-xl sm:text-2xl flex-shrink-0"
+                        className="text-slate-400 hover:text-white text-xl sm:text-2xl shrink-0"
                       >
                         ✕
                       </button>
@@ -1628,7 +1628,7 @@ export default function AdminBookingsPage() {
         {/* Custom Confirmation Dialog */}
         {confirmDialog && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-900/95 border border-slate-700/50 rounded-[2rem] p-8 max-w-md w-full shadow-2xl">
+            <div className="bg-slate-900/95 border border-slate-700/50 rounded-4xl p-8 max-w-md w-full shadow-2xl">
               <div className="text-center space-y-6">
                 <div>
                   <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic mb-2">
@@ -1659,7 +1659,7 @@ export default function AdminBookingsPage() {
         {/* Delete Bus Confirmation Dialog */}
         {deleteBusDialog && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-900/95 border border-slate-700/50 rounded-[2rem] p-8 max-w-md w-full shadow-2xl">
+            <div className="bg-slate-900/95 border border-slate-700/50 rounded-4xl p-8 max-w-md w-full shadow-2xl">
               <div className="text-center space-y-6">
                 <div>
                   <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic mb-2">
@@ -1692,7 +1692,7 @@ export default function AdminBookingsPage() {
         {/* Cancel Bus Confirmation Dialog */}
         {cancelBusDialog && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-900/95 border border-slate-700/50 rounded-[2rem] p-8 max-w-md w-full shadow-2xl">
+            <div className="bg-slate-900/95 border border-slate-700/50 rounded-4xl p-8 max-w-md w-full shadow-2xl">
               <div className="text-center space-y-6">
                 <div>
                   <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic mb-2">
