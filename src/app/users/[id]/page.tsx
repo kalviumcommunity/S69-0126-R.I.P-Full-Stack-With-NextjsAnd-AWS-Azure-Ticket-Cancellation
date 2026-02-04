@@ -8,9 +8,12 @@ interface Ticket {
   ticketNumber: string;
   seatNumber: string;
   status: string;
+  travelDate: string;
+  latestDepartureTime?: string;
   route?: {
     source: string;
     destination: string;
+    departureTime: string;
   };
 }
 
@@ -38,13 +41,13 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
       try {
         const resolvedParams = await params;
         const response = await fetch(`/api/users/${resolvedParams.id}`);
-        
+
         if (!response.ok) {
           const errorData = await response.json();
           console.error("API Error:", response.status, errorData);
           throw new Error(errorData.message || `Failed to fetch user (${response.status})`);
         }
-        
+
         const data = await response.json();
         console.log("User data fetched:", data.data);
         console.log("Tickets:", data.data.tickets);
@@ -107,10 +110,38 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
 
   const isAdmin = user.role === "ADMIN" || user.role === "admin";
 
+  const now = new Date();
+  now.setHours(0, 0, 0, 0); // Start of today
+
+  const getTicketDate = (ticket: Ticket) => {
+    return ticket.latestDepartureTime || ticket.route?.departureTime || ticket.travelDate;
+  };
+
+  const activeTickets = user.tickets.filter(ticket =>
+    ticket.status === 'ACTIVE' && new Date(getTicketDate(ticket)) >= now
+  );
+
+  const pastTickets = user.tickets.filter(ticket =>
+    ticket.status !== 'ACTIVE' || new Date(getTicketDate(ticket)) < now
+  );
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = date.toLocaleString('default', { month: 'short' });
+    const year = date.getFullYear();
+
+    const suffix = ["th", "st", "nd", "rd"];
+    const v = day % 100;
+    const ord = suffix[(v - 20) % 10] || suffix[v] || suffix[0];
+
+    return `${day}${ord} ${month} ${year}`;
+  };
+
   return (
     <main className="min-h-[90vh] bg-[#0F172A] p-6 md:p-12 flex flex-col items-center">
       <div className="max-w-4xl w-full space-y-8">
-        
+
         {/* Breadcrumbs */}
         <nav className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
           <Link href="/admin/bookings" className="hover:text-rose-500 transition-colors">Users</Link>
@@ -120,7 +151,7 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
 
         {/* Profile Card */}
         <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
-          
+
           {/* Top Banner Accent */}
           <div className={`h-32 w-full bg-gradient-to-r ${isAdmin ? 'from-blue-600 to-indigo-900' : 'from-rose-600 to-orange-900'} opacity-50`} />
 
@@ -140,9 +171,9 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
                   {isAdmin ? "Administrator" : "Passenger"}
                 </p>
               </div>
-              
+
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => setEditing(!editing)}
                   className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all border border-rose-500"
                 >
@@ -207,20 +238,26 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
           </div>
         </div>
 
-        {/* Tickets Section */}
+        {/* Active Tickets Section */}
         <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-[2.5rem] p-8 shadow-2xl">
           <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter">
             Active <span className="text-rose-500">Tickets</span>
           </h2>
 
-          {user.tickets && user.tickets.length > 0 ? (
+          {activeTickets.length > 0 ? (
             <div className="space-y-4">
-              {user.tickets.map((ticket) => (
+              {activeTickets.map((ticket) => (
                 <div key={ticket.id} className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-5">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <div>
                       <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Ticket #</p>
                       <p className="text-slate-200 font-mono font-bold">{ticket.ticketNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Date</p>
+                      <p className="text-slate-200 font-bold">
+                        {formatDate(getTicketDate(ticket))}
+                      </p>
                     </div>
                     <div>
                       <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Seat</p>
@@ -228,16 +265,16 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
                     </div>
                     <div>
                       <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Status</p>
-                      <p className={`font-bold text-sm ${ticket.status === 'CONFIRMED' ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                      <p className="font-bold text-sm text-emerald-400">
                         {ticket.status}
                       </p>
                     </div>
                     <div>
                       <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Route</p>
                       <p className="text-slate-200 font-medium">
-                        {ticket.route && ticket.route.source && ticket.route.destination 
-                          ? `${ticket.route.source} → ${ticket.route.destination}` 
-                          : ticket.route 
+                        {ticket.route && ticket.route.source && ticket.route.destination
+                          ? `${ticket.route.source} → ${ticket.route.destination}`
+                          : ticket.route
                             ? `${ticket.route.source || "N/A"} → ${ticket.route.destination || "N/A"}`
                             : "Not Set"
                         }
@@ -250,6 +287,61 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
           ) : (
             <div className="text-center py-12">
               <p className="text-slate-400 font-medium">No active tickets</p>
+            </div>
+          )}
+        </div>
+
+        {/* Past Tickets Section */}
+        <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-[2.5rem] p-8 shadow-2xl">
+          <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter">
+            Past <span className="text-slate-500">Tickets</span>
+          </h2>
+
+          {pastTickets.length > 0 ? (
+            <div className="space-y-4">
+              {pastTickets.map((ticket) => {
+                const ticketDate = new Date(getTicketDate(ticket));
+                const isExpired = ticket.status === 'ACTIVE' && ticketDate < now;
+                const isCancelled = ticket.status === 'CANCELLED' || ticket.status === 'REFUNDED';
+
+                return (
+                  <div key={ticket.id} className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-5 opacity-75 hover:opacity-100 transition-opacity">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Ticket #</p>
+                        <p className="text-slate-200 font-mono font-bold">{ticket.ticketNumber}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Date</p>
+                        <p className="text-slate-200 font-bold">
+                          {formatDate(getTicketDate(ticket))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Status</p>
+                        <p className={`font-bold text-sm ${isCancelled ? 'text-yellow-400' : isExpired ? 'text-slate-400' : 'text-emerald-400'}`}>
+                          {isExpired ? 'EXPIRED' : ticket.status}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Route</p>
+                        <p className="text-slate-200 font-medium">
+                          {ticket.route && ticket.route.source && ticket.route.destination
+                            ? `${ticket.route.source} → ${ticket.route.destination}`
+                            : ticket.route
+                              ? `${ticket.route.source || "N/A"} → ${ticket.route.destination || "N/A"}`
+                              : "Not Set"
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-slate-400 font-medium">No past tickets</p>
             </div>
           )}
         </div>

@@ -60,26 +60,31 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     try {
-      // Clear traditional cookies
+      // 1. Call API to clear server-side HttpOnly cookies
+      await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+
+      // 2. Clear client-side accessible cookies (just in case)
       Cookies.remove("token");
       Cookies.remove("role");
       Cookies.remove("accessToken");
       Cookies.remove("refreshToken");
+      Cookies.remove("user_id");
+      Cookies.remove("user_email");
 
-      // Reset local state
+      // 3. Reset local state
       setIsLoggedIn(false);
       setRole(null);
 
-      // Sign out from Clerk if user is authenticated via Clerk
+      // 4. Sign out from Clerk
       if (user) {
-        await signOut();
+        await signOut({ redirectUrl: '/' });
+      } else {
+        window.location.href = "/";
       }
-
-      // Redirect to home page
-      window.location.href = "/";
     } catch (error) {
       console.error("Logout error:", error);
-      // Force redirect even if there's an error
       window.location.href = "/";
     }
   };
@@ -95,7 +100,9 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             </Link>
 
             <div className="hidden md:flex gap-8 text-[10px] font-black uppercase tracking-[0.2em]">
-              <Link href="/" className="hover:text-rose-400 transition-colors">Home</Link>
+              {mounted && !isLoggedIn && (
+                <Link href="/" className="hover:text-rose-400 transition-colors">Home</Link>
+              )}
 
               {mounted && isLoggedIn && (
                 <>

@@ -1,3 +1,4 @@
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
@@ -10,32 +11,15 @@ interface DecodedToken {
   role: "admin" | "user";
 }
 
-/**
- * Middleware to protect API routes with JWT authentication.
- *
- * This middleware:
- * 1. Checks for valid access token from cookies or Authorization header
- * 2. Validates token signature and expiry
- * 3. Enforces role-based access control (admin vs user)
- * 4. Attaches user info to request headers for downstream handlers
- *
- * Security Features:
- * - Supports both Bearer token (Authorization header) and cookie-based tokens
- * - Validates token signature to prevent tampering
- * - Checks token expiry to ensure tokens are not reused after expiration
- * - Role-based access control prevents unauthorized access
- * - User info attached via headers (not stored in token)
- *
- * Token Refresh Flow:
- * - If token is expired (401), client should call /api/auth/refresh
- * - Server will issue new access token valid for 15 minutes
- * - This allows seamless re-authentication without user intervention
- */
-export async function middleware(req: NextRequest) {
+// Define routes that require the custom JWT/Admin check
+// We want to keep the existing logic for /api/admin/* and /api/users/*
+const isProtectedApiRoute = createRouteMatcher(["/api/admin(.*)", "/api/users(.*)"]);
+
+export default clerkMiddleware(async (auth, req: NextRequest) => {
   const { pathname } = req.nextUrl;
 
-  // Only protect specific routes
-  if (pathname.startsWith("/api/admin") || pathname.startsWith("/api/users")) {
+  // Run the detailed custom auth logic ONLY for specific API routes
+  if (isProtectedApiRoute(req)) {
     // Extract token from Authorization header or cookies
     let token: string | undefined;
 
@@ -132,10 +116,15 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
-}
+  // default protection for other routes (if any)
+  // for now, we just proceed
+});
 
-// Configure which routes the middleware applies to
 export const config = {
-  matcher: ["/api/admin/:path*", "/api/users/:path*"],
+  matcher: [
+    // Skip Next.js internals and all static files, unless found in search params
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Always run for API routes
+    '/(api|trpc)(.*)',
+  ],
 };

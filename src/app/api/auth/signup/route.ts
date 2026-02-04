@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import { signupSchema } from "@/lib/schemas/authSchema";
+import redis from "@/lib/redis";
 import { ZodError } from "zod";
 import { createUser, findUserByEmail, toPublicUser } from "@/lib/db";
 import { signAccessToken, signRefreshToken } from "@/lib/auth";
 import { sanitizePayload } from "@/lib/sanitizer";
 import {
-  handleError,
   ConflictError,
   ValidationError,
 } from "@/lib/errorHandler";
@@ -31,6 +31,26 @@ export async function POST(request: NextRequest) {
       console.log("User already exists:", data.email);
       throw new ConflictError("User already exists");
     }
+
+    // Verify OTP
+    if (!data.otp) {
+      console.log("OTP missing");
+      throw new ValidationError("OTP is required");
+    }
+
+    const storedOtp = await redis.get(`otp:${data.email}`);
+    if (!storedOtp) {
+      console.log("OTP expired or not found for:", data.email);
+      throw new ValidationError("OTP expired or invalid. Please request a new one.");
+    }
+
+    if (storedOtp !== data.otp) {
+      console.log("Invalid OTP provided");
+      throw new ValidationError("Invalid OTP. Please try again.");
+    }
+
+    // OTP verified, delete it to prevent reuse
+    await redis.del(`otp:${data.email}`);
 
     const passwordHash = await bcrypt.hash(data.password, 10);
     const created = await createUser({
@@ -98,7 +118,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     console.error("=== SIGNUP ERROR ===", error);
-    
+
     if (error instanceof ZodError) {
       // Return all field errors as an object: { field: message }
       const fieldErrors: Record<string, string> = {};
@@ -125,6 +145,17 @@ export async function POST(request: NextRequest) {
           fieldErrors: {},
         },
         { status: 409 }
+      );
+    }
+
+    if (error instanceof ValidationError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          fieldErrors: {},
+        },
+        { status: 400 }
       );
     }
 

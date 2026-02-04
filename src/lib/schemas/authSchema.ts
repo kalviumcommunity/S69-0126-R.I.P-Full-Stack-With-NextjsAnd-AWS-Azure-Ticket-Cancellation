@@ -17,7 +17,13 @@ export const signupSchema = z.object({
   email: sanitizedString(
     z.string().email("Invalid email address").toLowerCase()
   ),
-  password: z.string().min(8, "Password must be at least 8 characters long"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters long")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
   role: z.enum(["admin", "user"]).optional().default("user"),
   age: z
     .number()
@@ -25,6 +31,7 @@ export const signupSchema = z.object({
     .min(18, "User must be at least 18 years old")
     .max(120, "Age must be realistic")
     .optional(),
+  otp: z.string().length(6, "OTP must be exactly 6 digits").optional(),
 });
 
 export const loginSchema = z.object({

@@ -1,20 +1,9 @@
-/**
- * Admin Bus Routes API
- *
- * Allows admins to:
- * - Create new bus routes
- * - View all bus routes
- * - Update existing bus routes
- * - Delete bus routes
- *
- * Permissions: admin only
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { extractAndVerifyToken, requirePermission } from "@/lib/rbac";
 import { handleError, ValidationError } from "@/lib/errorHandler";
 import { logger } from "@/lib/logger";
 import { z } from "zod";
+import prisma from "@/lib/db";
 
 // Validation schema for creating bus route
 const createBusRouteSchema = z.object({
@@ -58,10 +47,27 @@ export async function GET(req: NextRequest) {
 
     logger.info(`Admin ${user?.email} fetched all bus routes`);
 
+    // Fetch from database
+    const routes = await prisma.busRoute.findMany({
+      orderBy: { departureTime: "desc" },
+      select: {
+        id: true,
+        source: true,
+        destination: true,
+        departureTime: true,
+        arrivalTime: true,
+        totalSeats: true,
+        availableSeats: true,
+        basePrice: true,
+        operatorId: true,
+        createdAt: true,
+      },
+    });
+
     return NextResponse.json(
       {
         success: true,
-        data: { busRoutes, total: busRoutes.length },
+        data: routes,
         message: "Bus routes retrieved successfully",
       },
       { status: 200 }

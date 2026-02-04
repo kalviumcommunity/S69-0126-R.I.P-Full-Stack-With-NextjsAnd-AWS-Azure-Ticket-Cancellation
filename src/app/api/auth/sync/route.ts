@@ -1,96 +1,119 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/db";
-import { logger } from "@/lib/logger";
+import { cookies } from "next/headers";
+import { SignJWT } from "jose";
 
-/**
- * POST /api/auth/sync
- * Sync Clerk user to local database
- */
-export async function POST(_request: NextRequest) {
+const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
+
+export async function POST() {
     try {
-        const { userId } = await auth();
+        const { userId: clerkId } = await auth();
+        const user = await currentUser();
 
-        if (!userId) {
-            return NextResponse.json(
-                { success: false, error: "Not authenticated" },
-                { status: 401 }
-            );
+        if (!clerkId || !user) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // Check if user already exists
-        let user = await prisma.user.findUnique({
-            where: { clerkId: userId },
-        });
-
-        if (user) {
-            return NextResponse.json({
-                success: true,
-                message: "User already synced",
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    name: user.name,
-                },
-            });
-        }
-
-        // Fetch user details from Clerk
-        const client = await clerkClient();
-        const clerkUser = await client.users.getUser(userId);
-        const email = clerkUser.emailAddresses[0]?.emailAddress;
-
+        const email = user.emailAddresses[0]?.emailAddress;
         if (!email) {
-            return NextResponse.json(
-                { success: false, error: "No email found for user" },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: "No email found" }, { status: 400 });
         }
 
-        // Check if user exists by email (legacy support)
-        const existingUserByEmail = await prisma.user.findUnique({
-            where: { email },
+        // Check if user exists
+        let dbUser = await prisma.user.findUnique({
+            where: { clerkId },
         });
 
-        if (existingUserByEmail) {
-            // Link Clerk ID to existing user
-            user = await prisma.user.update({
-                where: { id: existingUserByEmail.id },
-                data: { clerkId: userId },
+        // If not, try finding by email (in case they signed up via email before)
+        if (!dbUser) {
+            dbUser = await prisma.user.findUnique({
+                where: { email },
             });
-            logger.info(`[Auth Sync] Linked Clerk ID to existing user: ${email}`);
-        } else {
-            // Create new user
-            user = await prisma.user.create({
+
+            if (dbUser) {
+                // Link clerkId to existing email user
+                dbUser = await prisma.user.update({
+                    where: { id: dbUser.id },
+                    data: { clerkId },
+                });
+            }
+        }
+
+        // If still no user, create one
+        if (!dbUser) {
+            const name = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User";
+            dbUser = await prisma.user.create({
                 data: {
-                    clerkId: userId,
-                    email: email,
-                    name: `${clerkUser.firstName || ""} ${clerkUser.lastName || ""}`.trim() || "User",
-                    phone: clerkUser.phoneNumbers[0]?.phoneNumber || "",
-                    role: "PASSENGER",
+                    clerkId,
+                    email,
+                    name,
+                    role: "PASSENGER", // Default role
+                    provider: "google",
                 },
             });
-            logger.info(`[Auth Sync] Created new user from Clerk: ${email}`);
         }
+
+        const frontendRole = dbUser.role === "ADMIN" ? "admin" : "user";
+
+        // Generate JWT token
+        const secret = new TextEncoder().encode(JWT_SECRET);
+        const token = await new SignJWT({
+            id: dbUser.id,
+            email: dbUser.email,
+            role: frontendRole,
+        })
+            .setProtectedHeader({ alg: "HS256" })
+            .setExpirationTime("24h")
+            .sign(secret);
+
+        // Set cookies
+        const cookieStore = await cookies();
+
+        // Set 'token' for middleware (used by admin/api routes)
+        cookieStore.set("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 60 * 60 * 24, // 24 hours
+        });
+
+        // Set 'user_id' for legacy frontend logic
+        cookieStore.set("user_id", dbUser.id.toString(), {
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 60 * 60 * 24,
+        });
+
+        // Set 'user_email' for frontend display
+        cookieStore.set("user_email", dbUser.email, {
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 60 * 60 * 24,
+        });
+
+        // Set 'role' for frontend routing checks
+        cookieStore.set("role", frontendRole, {
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 60 * 60 * 24,
+        });
+
 
         return NextResponse.json({
             success: true,
-            message: "User synced successfully",
             user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
+                id: dbUser.id,
+                email: dbUser.email,
+                role: frontendRole,
             },
         });
     } catch (error) {
-        logger.error("[Auth Sync] Error syncing user", { error });
-        return NextResponse.json(
-            {
-                success: false,
-                error: "Failed to sync user",
-                details: error instanceof Error ? error.message : String(error),
-            },
-            { status: 500 }
-        );
+        console.error("Sync error:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

@@ -38,7 +38,7 @@ export async function GET(
     // Step 1: Check Redis Cache for this specific user (but always fetch fresh tickets)
     const cacheKey = `user:${userId}`;
     let cachedUser = null;
-    
+
     // For now, skip cache to ensure fresh route data is always fetched
     // TODO: Implement better cache invalidation when tickets change
     /*
@@ -64,7 +64,7 @@ export async function GET(
 
     // Step 2: Fetch user from database with tickets
     logger.info("Cache Miss - Fetching user from database", { userId });
-    
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -80,35 +80,69 @@ export async function GET(
       throw new NotFoundError("User not found");
     }
 
+    // Check for updated routes/dates for tickets
+    const ticketsWithLatestDates = await Promise.all(user.tickets.map(async (ticket) => {
+      let latestDepartureTime = ticket.route?.departureTime;
+      let busNumber = null;
+
+      // 1. Try to get bus number from route source
+      if (ticket.route?.source?.startsWith("BUS-")) {
+        busNumber = ticket.route.source.replace("BUS-", "");
+      }
+
+      // 2. If not found, look up via Seat allocation
+      if (!busNumber) {
+        const seat = await prisma.seat.findFirst({
+          where: {
+            allocatedUserId: user.id,
+            seatNumber: ticket.seatNumber
+          },
+          include: { bus: true }
+        });
+
+        if (seat?.bus) {
+          busNumber = seat.bus.busNumber;
+        }
+      }
+
+      // 3. If we have a bus number, find its latest scheduled route
+      if (busNumber) {
+        const busIdentifier = `BUS-${busNumber}`;
+
+        // Find the latest created route for this bus
+        const latestRoute = await prisma.busRoute.findFirst({
+          where: { source: busIdentifier },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (latestRoute) {
+          latestDepartureTime = latestRoute.departureTime;
+        }
+      }
+
+      return {
+        ...ticket,
+        latestDepartureTime
+      };
+    }));
+
     // Remove sensitive password field
     const { password, ...userWithoutPassword } = user;
+    const userWithUpdatedTickets = {
+      ...userWithoutPassword,
+      tickets: ticketsWithLatestDates
+    };
 
-    logger.info("User fetched with tickets", { 
-      userId, 
+    logger.info("User fetched with tickets", {
+      userId,
       ticketCount: user.tickets.length,
-      tickets: user.tickets.map(t => ({
-        id: t.id,
-        ticketNumber: t.ticketNumber,
-        route: t.route
-      }))
     });
-
-    // Step 3: Store in cache with TTL (non-blocking)
-    // Note: Currently disabled caching for user endpoint to ensure fresh ticket/route data
-    // TODO: Re-enable with better cache invalidation strategy
-    /*
-    try {
-      await redis.setex(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(userWithoutPassword));
-    } catch (err) {
-      logger.warn("Redis cache set error, continuing", { error: err });
-    }
-    */
 
     logger.info("User fetched and cached by ID", { userId });
     return NextResponse.json(
       {
         success: true,
-        data: userWithoutPassword,
+        data: userWithUpdatedTickets,
         message: "User fetched successfully",
         cacheStatus: "MISS",
       },
@@ -197,9 +231,9 @@ export async function PUT(
     if (error instanceof ZodError) {
       const validationError = new ValidationError(
         "Validation failed: " +
-          error.issues
-            .map((e) => `${e.path.join(".")}: ${e.message}`)
-            .join(", ")
+        error.issues
+          .map((e) => `${e.path.join(".")}: ${e.message}`)
+          .join(", ")
       );
       return handleError(
         validationError,
@@ -294,9 +328,9 @@ export async function PATCH(
     if (error instanceof ZodError) {
       const validationError = new ValidationError(
         "Validation failed: " +
-          error.issues
-            .map((e) => `${e.path.join(".")}: ${e.message}`)
-            .join(", ")
+        error.issues
+          .map((e) => `${e.path.join(".")}: ${e.message}`)
+          .join(", ")
       );
       return handleError(
         validationError,
