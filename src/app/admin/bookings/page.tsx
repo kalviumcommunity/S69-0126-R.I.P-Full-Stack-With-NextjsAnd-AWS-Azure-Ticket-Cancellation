@@ -794,7 +794,13 @@ export default function AdminBookingsPage() {
                             const activeCount = user.tickets.filter((t: any) => {
                               const dateStr = t.latestDepartureTime || t.route?.departureTime || t.travelDate;
                               const ticketDate = new Date(dateStr);
-                              return t.status === 'ACTIVE' && ticketDate >= now;
+                              const isValidDate = !isNaN(ticketDate.getTime());
+
+                              if (t.status === 'ACTIVE') {
+                                // If date is invalid, count it as active (fallback)
+                                return !isValidDate || ticketDate >= now;
+                              }
+                              return false;
                             }).length;
 
                             return (

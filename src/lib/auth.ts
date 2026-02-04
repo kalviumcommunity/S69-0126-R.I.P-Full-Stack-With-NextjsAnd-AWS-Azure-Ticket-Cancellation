@@ -69,9 +69,45 @@ export const verifyAccessToken = async (token: string): Promise<TokenPayload> =>
   return await verifyToken(token);
 };
 
+
 /**
  * Verify refresh token specifically
  */
 export const verifyRefreshToken = async (token: string): Promise<TokenPayload> => {
   return await verifyToken(token);
 };
+
+
+import { cookies } from "next/headers";
+import prisma from "@/lib/db";
+
+export async function getSession() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("accessToken")?.value;
+
+  if (!token) return null;
+
+  try {
+    const payload = await verifyToken(token);
+
+    // Optional: Fetch full user to get name if not in token
+    // For now we will return what we have, but if routes depend on name (like email), 
+    // we might need to fetch it.
+    // Let's try to fetch user quickly
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+      select: { name: true }
+    });
+
+    return {
+      user: {
+        id: payload.id,
+        email: payload.email,
+        role: payload.role,
+        name: user?.name || "User",
+      }
+    };
+  } catch (error) {
+    return null;
+  }
+}

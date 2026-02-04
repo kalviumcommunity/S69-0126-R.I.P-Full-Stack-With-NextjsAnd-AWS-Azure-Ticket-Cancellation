@@ -127,54 +127,94 @@ export async function POST(request: NextRequest) {
         // Also create a Ticket record for this booking
         let ticket = null;
         try {
-            // Get or create a route for this bus
+            // Correctly find the route for THIS bus
+            // The system uses source = "BUS-" + busNumber convention
+            const busIdentifier = `BUS-${seat.bus.busNumber}`;
+
             let route = await prisma.busRoute.findFirst({
                 where: {
-                    // Try to find a route with matching source/destination if provided
-                    ...(source && destination ? {
-                        source: source,
-                        destination: destination,
-                    } : {})
-                }
+                    source: busIdentifier
+                },
+                orderBy: { createdAt: 'desc' }
             });
-            
-            // If no route exists, create one
+
+            // If no route exists for this bus, create one properly linked to it
             if (!route) {
-                // Find any admin user to be the operator, or use user 1 as fallback
+                // Find any admin user to be the operator
                 const admin = await prisma.user.findFirst({
                     where: { role: "ADMIN" }
-                }) || await prisma.user.findFirst({
-                    where: { id: 1 }
-                });
+                }) || await prisma.user.findFirst();
+
+                const departureDate = new Date();
+                const arrivalDate = new Date(departureDate.getTime() + 3600000);
 
                 route = await prisma.busRoute.create({
                     data: {
                         operatorId: admin?.id || userId,
-                        source: source || "Starting Point",
+                        source: busIdentifier,
                         destination: destination || "Destination",
-                        departureTime: new Date(),
-                        arrivalTime: new Date(Date.now() + 3600000), // 1 hour later
-                        totalSeats: 50,
-                        availableSeats: 50,
+                        departureTime: departureDate,
+                        arrivalTime: arrivalDate,
+                        totalSeats: seat.bus.totalSeats || 40,
+                        availableSeats: seat.bus.totalSeats || 40,
                         basePrice: 500,
                     },
                 });
             }
 
-            ticket = await prisma.ticket.create({
-                data: {
-                    ticketNumber: `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase(),
-                    userId: userId,
-                    routeId: route.id,
-                    seatNumber: seat.seatNumber,
-                    status: "ACTIVE",
-                    purchasePrice: route.basePrice || 500,
-                    travelDate: new Date(),
-                },
+            // Check if a ticket already exists for this seat on this route (idempotency/cleanup)
+            const existingTicket = await prisma.ticket.findUnique({
+                where: {
+                    routeId_seatNumber: {
+                        routeId: route.id,
+                        seatNumber: seat.seatNumber
+                    }
+                }
             });
+
+            if (existingTicket) {
+                // If reusing a ticket, clear any prior cancellation state and issue a new ticket number
+                const existingCancellation = await prisma.cancellation.findUnique({
+                    where: { ticketId: existingTicket.id }
+                });
+
+                if (existingCancellation) {
+                    await prisma.cancellation.delete({
+                        where: { ticketId: existingTicket.id }
+                    });
+                }
+
+                ticket = await prisma.ticket.update({
+                    where: { id: existingTicket.id },
+                    data: {
+                        ticketNumber: `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase(),
+                        userId: userId,
+                        status: "ACTIVE",
+                        purchasePrice: route.basePrice || 500,
+                        travelDate: route.departureTime,
+                        updatedAt: new Date()
+                    }
+                });
+            } else {
+                ticket = await prisma.ticket.create({
+                    data: {
+                        ticketNumber: `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase(),
+                        userId: userId,
+                        routeId: route.id,
+                        seatNumber: seat.seatNumber,
+                        status: "ACTIVE",
+                        purchasePrice: route.basePrice || 500,
+                        travelDate: route.departureTime,
+                    },
+                });
+            }
+
+            console.log("Ticket created/updated successfully:", ticket.ticketNumber);
+
         } catch (ticketError) {
-            console.error("Error creating ticket (non-blocking):", ticketError);
-            // Don't fail the seat allocation if ticket creation fails
+            console.error("Error creating ticket:", ticketError);
+            // We log but don't fail the seat update, to keep UI consistent
+            // But this is critical for the User Profile to see the ticket
         }
 
         return NextResponse.json(
