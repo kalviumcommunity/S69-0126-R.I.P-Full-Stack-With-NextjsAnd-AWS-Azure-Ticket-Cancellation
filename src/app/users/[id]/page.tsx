@@ -37,8 +37,23 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
   const [savingPhone, setSavingPhone] = useState(false);
   const [editError, setEditError] = useState("");
   const [editSuccess, setEditSuccess] = useState("");
+  const [viewerRole, setViewerRole] = useState<string | null>(null);
 
   useEffect(() => {
+    const loadViewer = async () => {
+      try {
+        const response = await fetch("/api/auth/me");
+        if (response.ok) {
+          const data = await response.json();
+          if (data?.success && data?.user?.role) {
+            setViewerRole(data.user.role);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading viewer:", err);
+      }
+    };
+
     const loadUser = async () => {
       try {
         const resolvedParams = await params;
@@ -63,6 +78,7 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
     };
 
     loadUser();
+    loadViewer();
   }, [params]);
 
   const handleSavePhone = async () => {
@@ -110,7 +126,8 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
     );
   }
 
-  const isAdmin = user.role === "ADMIN" || user.role === "admin";
+  const isViewerAdmin = viewerRole === "ADMIN" || viewerRole === "admin";
+  const isProfileAdmin = user.role === "ADMIN" || user.role === "admin";
 
   const now = new Date();
   now.setHours(0, 0, 0, 0); // Start of today
@@ -177,7 +194,9 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
 
         {/* Breadcrumbs */}
         <nav className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-          <Link href="/admin/bookings" className="hover:text-rose-500 transition-colors">Users</Link>
+          <Link href={isViewerAdmin ? "/admin/bookings" : "/dashboard"} className="hover:text-rose-500 transition-colors">
+            {isViewerAdmin ? "Admin Bookings" : "Dashboard"}
+          </Link>
           <span>/</span>
           <span className="text-slate-300">{user.name}</span>
         </nav>
@@ -186,7 +205,7 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
         <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
 
           {/* Top Banner Accent */}
-          <div className={`h-32 w-full bg-linear-to-r ${isAdmin ? 'from-blue-600 to-indigo-900' : 'from-rose-600 to-orange-900'} opacity-50`} />
+          <div className={`h-32 w-full bg-linear-to-r ${isProfileAdmin ? 'from-blue-600 to-indigo-900' : 'from-rose-600 to-orange-900'} opacity-50`} />
 
           <div className="px-8 pb-10 -mt-16 relative">
             {/* Avatar */}
@@ -201,7 +220,7 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
                 </h1>
                 <p className="text-rose-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
-                  {isAdmin ? "Administrator" : "Passenger"}
+                  {isProfileAdmin ? "Administrator" : "Passenger"}
                 </p>
               </div>
 

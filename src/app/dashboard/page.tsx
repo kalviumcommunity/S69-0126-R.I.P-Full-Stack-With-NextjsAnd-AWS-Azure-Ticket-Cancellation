@@ -21,11 +21,18 @@ interface Ticket {
 }
 
 interface RefundRequest {
-  id: string;
-  email: string;
-  reason: string;
-  status: 'pending' | 'approved' | 'declined';
-  submittedAt: string;
+  id: number;
+  ticketId: number;
+  userId: number;
+  cancellationReason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REFUND_INITIATED' | 'REFUND_COMPLETED';
+  requestedAt: string;
+  approvedAt?: string | null;
+  source?: string | null;
+  destination?: string | null;
+  ticket?: {
+    ticketNumber: string;
+  };
 }
 
 import { useUser } from "@clerk/nextjs";
@@ -154,7 +161,7 @@ export default function UserDashboard() {
     }
   }, [isSignedIn, mounted, isSyncing]);
 
-  const loadTickets = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!userId) return;
 
     try {
@@ -164,6 +171,7 @@ export default function UserDashboard() {
       if (response.ok) {
         const data = await response.json();
         const tickets = data.data.tickets || [];
+        const cancellations = data.data.cancellations || [];
 
         // Separate active and past tickets
         const now = new Date();
@@ -181,37 +189,25 @@ export default function UserDashboard() {
 
         setActiveTickets(active);
         setPastTickets(past);
+        setMyRequests(cancellations);
       }
     } catch (error) {
-      console.error("Error loading tickets:", error);
+      console.error("Error loading data:", error);
     }
   }, [userId, getTicketDate]);
-
-  const loadRequests = useCallback(() => {
-    if (typeof window !== "undefined") {
-      const allRequests: RefundRequest[] = JSON.parse(
-        localStorage.getItem("refund_requests") || "[]"
-      );
-      setMyRequests(allRequests);
-    }
-  }, []);
 
   useEffect(() => {
     setMounted(true);
     // Get user ID from cookies or localStorage
     const id = parseInt(Cookies.get("user_id") || "0");
     setUserId(id);
-
-    loadRequests();
-    window.addEventListener("focus", loadRequests);
-    return () => window.removeEventListener("focus", loadRequests);
-  }, [loadRequests]);
+  }, []);
 
   useEffect(() => {
     if (userId) {
-      loadTickets();
+      loadData();
     }
-  }, [userId, loadTickets]);
+  }, [userId, loadData]);
 
   if (!mounted) return null;
 
@@ -220,11 +216,10 @@ export default function UserDashboard() {
       {/* Notification Toast */}
       {notification.isOpen && (
         <div className="fixed bottom-8 right-8 z-9999 animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className={`rounded-xl border px-6 py-4 shadow-2xl flex items-center gap-3 ${
-            notification.type === 'success' 
-              ? 'bg-emerald-900/30 border-emerald-500/50' 
-              : 'bg-rose-900/30 border-rose-500/50'
-          }`}>
+          <div className={`rounded-xl border px-6 py-4 shadow-2xl flex items-center gap-3 ${notification.type === 'success'
+            ? 'bg-emerald-900/30 border-emerald-500/50'
+            : 'bg-rose-900/30 border-rose-500/50'
+            }`}>
             {notification.type === 'success' && (
               <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
                 <svg className="w-3 h-3 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
@@ -239,11 +234,10 @@ export default function UserDashboard() {
                 </svg>
               </div>
             )}
-            <span className={`text-sm font-semibold ${
-              notification.type === 'success' 
-                ? 'text-emerald-300' 
-                : 'text-rose-300'
-            }`}>
+            <span className={`text-sm font-semibold ${notification.type === 'success'
+              ? 'text-emerald-300'
+              : 'text-rose-300'
+              }`}>
               {notification.message}
             </span>
           </div>
@@ -451,12 +445,7 @@ export default function UserDashboard() {
             <h2 className="text-3xl font-black italic tracking-tighter text-white uppercase">
               My <span className="text-rose-500">Refunds</span>
             </h2>
-            <Link
-              href="/dashboard/request"
-              className="bg-rose-600 hover:bg-rose-500 text-white px-6 py-2 rounded-lg font-bold text-[10px] uppercase tracking-widest transition-all"
-            >
-              + New Request
-            </Link>
+            {/* New Request link removed as cancellation is done via Active Tickets */}
           </div>
 
           {myRequests.length === 0 ? (
@@ -472,21 +461,31 @@ export default function UserDashboard() {
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <p className="text-[10px] bg-slate-800 px-3 py-1 rounded text-slate-400 font-bold tracking-widest uppercase inline-block mb-3">
-                        ID: {req.id}
+                        TICKET: {req.ticket?.ticketNumber || req.ticketId}
                       </p>
-                      <p className="text-xl font-black text-white uppercase italic tracking-tighter">
-                        Refund Recovery
-                      </p>
-                      <p className="text-slate-500 text-xs mt-2">Reason: {req.reason}</p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-xl font-black text-white uppercase italic tracking-tighter">
+                          Refund Request
+                        </p>
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded border ${req.status === 'APPROVED' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
+                          req.status === 'REJECTED' ? "bg-rose-500/10 text-rose-500 border-rose-500/20" :
+                            "bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse"
+                          }`}>
+                          {req.status}
+                        </span>
+                      </div>
+                      <p className="text-slate-500 text-xs mt-2">Reason: {req.cancellationReason}</p>
+                      {req.source && req.destination && (
+                        <p className="text-slate-600 text-[10px] uppercase font-bold tracking-wider mt-1">
+                          {req.source} → {req.destination}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
-                      <p className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border ${req.status === 'approved' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
-                        req.status === 'declined' ? "bg-rose-500/10 text-rose-500 border-rose-500/20" :
-                          "bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse"
-                        }`}>
-                        {req.status}
-                      </p>
-                      <p className="text-slate-500 text-[9px] mt-2">{new Date(req.submittedAt).toLocaleDateString()}</p>
+                      <p className="text-slate-500 text-[9px] mt-2">Requested: {new Date(req.requestedAt).toLocaleDateString()}</p>
+                      {req.approvedAt && (
+                        <p className="text-emerald-600 text-[9px] mt-1">Approved: {new Date(req.approvedAt).toLocaleDateString()}</p>
+                      )}
                     </div>
                   </div>
                 </div>

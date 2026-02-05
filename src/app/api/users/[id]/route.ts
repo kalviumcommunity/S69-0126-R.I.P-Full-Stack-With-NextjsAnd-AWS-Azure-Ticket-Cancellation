@@ -73,6 +73,11 @@ export async function GET(
             route: true,
           },
         },
+        cancellations: {
+          include: {
+            ticket: true
+          }
+        }
       },
     });
 
@@ -234,6 +239,11 @@ export async function PUT(
             route: true,
           },
         },
+        cancellations: {
+          include: {
+            ticket: true
+          }
+        }
       },
     });
 

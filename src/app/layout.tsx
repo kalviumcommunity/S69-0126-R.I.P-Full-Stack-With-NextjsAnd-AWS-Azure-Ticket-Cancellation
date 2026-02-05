@@ -184,7 +184,7 @@ import { usePathname } from "next/navigation";
 import Cookies from "js-cookie";
 import { useEffect, useState, useRef } from "react";
 import { ClerkProvider, useUser, useClerk } from "@clerk/nextjs";
-import { Menu, X, ShieldCheck, LogOut, LayoutDashboard, Terminal, Activity, Home as HomeIcon } from "lucide-react"; 
+import { Menu, X, ShieldCheck, LogOut, LayoutDashboard, Terminal, Activity, Home as HomeIcon, User } from "lucide-react"; 
 import "./globals.css";
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
@@ -193,6 +193,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [role, setRole] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [userId, setUserId] = useState<number | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   
   const headerRef = useRef<HTMLDivElement>(null); // Ref to track the header area
   const { user, isLoaded: clerkLoaded } = useUser();
@@ -222,6 +224,26 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     const userRole = Cookies.get("role");
     setIsLoggedIn(!!userRole || !!user);
     setRole(userRole || (user ? "user" : null));
+    
+    // Fetch current user ID and name if logged in
+    if (userRole || user) {
+      fetch("/api/auth/me")
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.user) {
+            setUserId(data.user.id);
+            // Fetch user details to get name
+            return fetch(`/api/users/${data.user.id}`);
+          }
+        })
+        .then(res => res?.json())
+        .then(data => {
+          if (data?.success && data?.data) {
+            setUserName(data.data.name);
+          }
+        })
+        .catch(err => console.error("Failed to fetch user:", err));
+    }
   }, [pathname, user, clerkLoaded]);
 
   const handleLogout = async () => {
@@ -277,17 +299,25 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         <header 
           ref={headerRef}
           onMouseLeave={() => setIsMobileMenuOpen(false)} // Auto-close on Desktop when mouse leaves
-          className="sticky top-0 z-[100] w-full border-b border-white/5 bg-[#0F172A]/80 backdrop-blur-xl"
+          className="sticky top-0 z-100 w-full border-b border-white/5 bg-[#0F172A]/80 backdrop-blur-xl"
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex h-16 items-center justify-between">
               
               <div className="flex items-center gap-12">
-                <Link href="/" className="flex items-center gap-2 group">
-                  <span className="text-2xl font-black italic tracking-tighter text-white transition-transform group-hover:scale-105">
-                    R.I.P<span className="text-rose-500">.</span>
-                  </span>
-                </Link>
+                {isLoggedIn ? (
+                  <div className="flex items-center gap-2 group cursor-default">
+                    <span className="text-2xl font-black italic tracking-tighter text-white">
+                      R.I.P<span className="text-rose-500">.</span>
+                    </span>
+                  </div>
+                ) : (
+                  <Link href="/" className="flex items-center gap-2 group">
+                    <span className="text-2xl font-black italic tracking-tighter text-white transition-transform group-hover:scale-105">
+                      R.I.P<span className="text-rose-500">.</span>
+                    </span>
+                  </Link>
+                )}
 
                 <nav className="hidden md:block">
                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
@@ -305,14 +335,22 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                       Sign Up
                     </Link>
                   ) : (
-                    <div className="flex items-center gap-4 border-l border-white/10 pl-6">
-                      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-[9px] font-black tracking-widest ${role === 'admin' ? 'border-blue-500/30 text-blue-400 bg-blue-500/5' : 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'}`}>
-                        <ShieldCheck size={12} />
-                        {role?.toUpperCase()}
+                    <div className="flex items-center gap-4">
+                      {userId && userName && role !== 'admin' ? (
+                        <Link href={`/users/${userId}`} className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-purple-500/10 text-purple-400 transition-all">
+                          <User size={14} />
+                          <span className="text-[15px] font-bold tracking-wide">{userName}</span>
+                        </Link>
+                      ) : null}
+                      <div className="flex items-center gap-4 border-l border-white/10 pl-6">
+                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-[9px] font-black tracking-widest ${role === 'admin' ? 'border-blue-500/30 text-blue-400 bg-blue-500/5' : 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'}`}>
+                          <ShieldCheck size={12} />
+                          {role?.toUpperCase()}
+                        </div>
+                        <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all">
+                          <LogOut size={18} />
+                        </button>
                       </div>
-                      <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all">
-                        <LogOut size={18} />
-                      </button>
                     </div>
                   )}
                 </div>
@@ -348,7 +386,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           )}
         </header>
 
-        <main className="flex-grow">
+        <main className="grow">
           {children}
         </main>
       </body>
