@@ -7,8 +7,12 @@ import { verifyToken } from "@/lib/auth";
  */
 export async function GET(request: NextRequest) {
   try {
-    const accessToken = request.cookies.get("accessToken")?.value;
-    
+    let accessToken = request.cookies.get("accessToken")?.value;
+
+    if (!accessToken) {
+      accessToken = request.cookies.get("token")?.value;
+    }
+
     if (!accessToken) {
       return NextResponse.json(
         { success: false, error: "Not authenticated" },
@@ -18,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     // Verify the token
     const decoded = await verifyToken(accessToken);
-    
+
     return NextResponse.json(
       {
         success: true,

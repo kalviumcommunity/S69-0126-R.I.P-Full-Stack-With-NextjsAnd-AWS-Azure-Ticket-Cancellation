@@ -84,7 +84,7 @@
 //         <header className="sticky top-0 z-[100] w-full border-b border-white/5 bg-[#0F172A]/80 backdrop-blur-xl">
 //           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 //             <div className="flex h-16 items-center justify-between">
-              
+
 //               {/* Brand Section */}
 //               <div className="flex items-center gap-12">
 //                 <Link href="/" className="flex items-center gap-2 group">
@@ -184,7 +184,7 @@ import { usePathname } from "next/navigation";
 import Cookies from "js-cookie";
 import { useEffect, useState, useRef } from "react";
 import { ClerkProvider, useUser, useClerk } from "@clerk/nextjs";
-import { Menu, X, ShieldCheck, LogOut, LayoutDashboard, Terminal, Activity, Home as HomeIcon, User } from "lucide-react"; 
+import { Menu, X, ShieldCheck, LogOut, LayoutDashboard, Terminal, Activity, Home as HomeIcon, User } from "lucide-react";
 import "./globals.css";
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
@@ -195,7 +195,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
-  
+
   const headerRef = useRef<HTMLDivElement>(null); // Ref to track the header area
   const { user, isLoaded: clerkLoaded } = useUser();
   const { signOut } = useClerk();
@@ -224,16 +224,36 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     const userRole = Cookies.get("role");
     setIsLoggedIn(!!userRole || !!user);
     setRole(userRole || (user ? "user" : null));
-    
-    // Fetch current user ID and name if logged in
+
+    // 1. Try to get ID from cookie (set by sync)
+    const cookieUserId = Cookies.get("user_id");
+
+    if (cookieUserId) {
+      const parsedId = parseInt(cookieUserId);
+      if (!isNaN(parsedId)) {
+        setUserId(parsedId);
+        // Fetch user name
+        fetch(`/api/users/${parsedId}`, { credentials: "include" })
+          .then(res => res.json())
+          .then(data => {
+            if (data?.success && data?.data) {
+              setUserName(data.data.name);
+            }
+          })
+          .catch(err => console.error("Failed to fetch user details:", err));
+        return; // Skip /api/auth/me if we have cookie
+      }
+    }
+
+    // 2. Fallback: Fetch current user ID from API if logged in but no cookie
     if (userRole || user) {
-      fetch("/api/auth/me")
+      fetch("/api/auth/me", { credentials: "include" })
         .then(res => res.json())
         .then(data => {
           if (data.success && data.user) {
             setUserId(data.user.id);
             // Fetch user details to get name
-            return fetch(`/api/users/${data.user.id}`);
+            return fetch(`/api/users/${data.user.id}`, { credentials: "include" });
           }
         })
         .then(res => res?.json())
@@ -294,16 +314,16 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className="bg-[#0F172A] text-slate-200 antialiased selection:bg-rose-500/30 min-h-screen flex flex-col">
-        
+
         {/* HEADER with Ref and MouseLeave for Auto-Close */}
-        <header 
+        <header
           ref={headerRef}
           onMouseLeave={() => setIsMobileMenuOpen(false)} // Auto-close on Desktop when mouse leaves
           className="sticky top-0 z-100 w-full border-b border-white/5 bg-[#0F172A]/80 backdrop-blur-xl"
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex h-16 items-center justify-between">
-              
+
               <div className="flex items-center gap-12">
                 {isLoggedIn ? (
                   <div className="flex items-center gap-2 group cursor-default">
@@ -355,7 +375,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                   )}
                 </div>
 
-                <button 
+                <button
                   className="md:hidden p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
                   onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 >
