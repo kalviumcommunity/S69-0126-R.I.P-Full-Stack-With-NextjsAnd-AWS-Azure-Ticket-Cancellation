@@ -42,7 +42,7 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
   useEffect(() => {
     const loadViewer = async () => {
       try {
-        const response = await fetch("/api/auth/me");
+        const response = await fetch("/api/auth/me", { credentials: "include" });
         if (response.ok) {
           const data = await response.json();
           if (data?.success && data?.user?.role) {
@@ -57,7 +57,7 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
     const loadUser = async () => {
       try {
         const resolvedParams = await params;
-        const response = await fetch(`/api/users/${resolvedParams.id}`);
+        const response = await fetch(`/api/users/${resolvedParams.id}`, { credentials: "include" });
 
         if (!response.ok) {
           const errorData = await response.json();
@@ -91,6 +91,7 @@ export default function UserProfile({ params }: { params: Promise<{ id: string }
       const response = await fetch(`/api/users/${resolvedParams.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ phone: phone || null }),
       });
 
