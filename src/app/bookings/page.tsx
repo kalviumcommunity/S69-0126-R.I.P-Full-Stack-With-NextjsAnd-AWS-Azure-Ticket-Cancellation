@@ -156,11 +156,10 @@ export default function UserBookingsPage() {
                     </div>
                     <div className="text-right">
                       <span
-                        className={`px-3 py-1 rounded text-sm font-medium mb-2 inline-block ${
-                          booking.status === "ACTIVE"
+                        className={`px-3 py-1 rounded text-sm font-medium mb-2 inline-block ${booking.status === "ACTIVE"
                             ? "bg-green-200 text-green-800"
                             : "bg-red-200 text-red-800"
-                        }`}
+                          }`}
                       >
                         {booking.status}
                       </span>

@@ -79,6 +79,7 @@ export default function UserDashboard() {
       const res = await fetch("/api/tickets/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ ticketId: cancelTicketId, reason: cancelReason })
       });
 

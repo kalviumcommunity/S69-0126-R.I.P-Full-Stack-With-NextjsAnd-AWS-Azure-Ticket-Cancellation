@@ -38,6 +38,11 @@ export const extractAndVerifyToken = async (
       token = req.cookies.get("accessToken")?.value;
     }
 
+    // Also check for 'token' from Google/Sync auth
+    if (!token) {
+      token = req.cookies.get("token")?.value;
+    }
+
     if (token) {
       return await verifyAccessToken(token);
     }
