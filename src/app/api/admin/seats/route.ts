@@ -211,6 +211,26 @@ export async function POST(request: NextRequest) {
 
             console.log("Ticket created/updated successfully:", ticket.ticketNumber);
 
+            // Send confirmation email 
+            if (updatedSeat.allocatedUser && updatedSeat.allocatedUser.email) {
+                try {
+                    const { sendAdminBookingEmail } = await import("@/lib/email");
+                    await sendAdminBookingEmail({
+                        email: updatedSeat.allocatedUser.email,
+                        name: updatedSeat.allocatedUser.name,
+                        ticketNumber: ticket.ticketNumber,
+                        source: (updatedSeat.source && updatedSeat.source !== "Not Specified") ? updatedSeat.source : route.source,
+                        destination: (updatedSeat.destination && updatedSeat.destination !== "Not Specified") ? updatedSeat.destination : route.destination,
+                        travelDate: route.departureTime,
+                        busNumber: updatedSeat.bus.busNumber,
+                        seatNumber: updatedSeat.seatNumber
+                    });
+                    console.log(`Email sent to ${updatedSeat.allocatedUser.email}`);
+                } catch (emailErr) {
+                    console.error("Failed to send admin booking email:", emailErr);
+                }
+            }
+
         } catch (ticketError) {
             console.error("Error creating ticket:", ticketError);
             // We log but don't fail the seat update, to keep UI consistent

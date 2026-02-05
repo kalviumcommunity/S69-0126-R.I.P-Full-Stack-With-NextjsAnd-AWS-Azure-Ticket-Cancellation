@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractAndVerifyToken, requirePermission } from "@/lib/rbac";
 import { handleError, ValidationError } from "@/lib/errorHandler";
 import { logger } from "@/lib/logger";
+import { sendAdminBookingEmail } from "@/lib/email";
 import { z } from "zod";
 import prisma from "@/lib/db";
 
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         user: true,
-        seat: { include: { busRoute: true } }
+        route: true
       }
     });
 
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
       where: {
         routeId: data.busRouteId,
         seatNumber: data.seatNumber.toString(),
-        status: { not: "cancelled" }
+        status: { not: "CANCELLED" }
       }
     });
 
@@ -92,22 +93,31 @@ export async function POST(req: NextRequest) {
       throw new ValidationError("Seat is already booked");
     }
 
+    // Fetch route details to set correct travel date
+    const route = await prisma.busRoute.findUnique({
+      where: { id: data.busRouteId }
+    });
+
+    if (!route) {
+      throw new ValidationError("Invalid bus route");
+    }
+
     // Create ticket in Prisma database
     const ticketNumber = `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
-    
+
     const ticket = await prisma.ticket.create({
       data: {
         ticketNumber,
         userId: data.userId,
         routeId: data.busRouteId,
         seatNumber: data.seatNumber.toString(),
-        status: "active",
+        status: "ACTIVE",
         purchasePrice: 0,
-        travelDate: new Date(),
+        travelDate: route.departureTime,
       },
       include: {
         user: true,
-        seat: { include: { busRoute: true } }
+        route: true
       }
     });
 
@@ -117,6 +127,32 @@ export async function POST(req: NextRequest) {
       busRouteId: data.busRouteId,
       ticketNumber,
     });
+
+    // Send confirmation email
+    if (ticket.user.email) {
+      let busNum = "Standard Service";
+      // Attempt to extract bus number from source if it follows the pattern "BUS-XXXX"
+      if (ticket.route.source && ticket.route.source.startsWith("BUS-")) {
+        busNum = ticket.route.source.replace("BUS-", "");
+      }
+
+      try {
+        await sendAdminBookingEmail({
+          email: ticket.user.email,
+          name: data.passengerName || ticket.user.name,
+          ticketNumber: ticket.ticketNumber,
+          source: ticket.route.source,
+          destination: ticket.route.destination,
+          travelDate: ticket.travelDate,
+          busNumber: busNum,
+          seatNumber: ticket.seatNumber
+        });
+        logger.info(`Email sent to ${ticket.user.email}`);
+      } catch (emailErr) {
+        logger.error("Failed to send admin booking email", { error: emailErr });
+        // Don't fail the request if email fails, but log it
+      }
+    }
 
     return NextResponse.json(
       {
