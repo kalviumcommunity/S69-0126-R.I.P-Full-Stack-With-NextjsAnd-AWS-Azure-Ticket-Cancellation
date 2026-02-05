@@ -83,7 +83,11 @@ import prisma from "@/lib/db";
 
 export async function getSession() {
   const cookieStore = await cookies();
-  const token = cookieStore.get("accessToken")?.value;
+  let token = cookieStore.get("accessToken")?.value;
+
+  if (!token) {
+    token = cookieStore.get("token")?.value;
+  }
 
   if (!token) return null;
 

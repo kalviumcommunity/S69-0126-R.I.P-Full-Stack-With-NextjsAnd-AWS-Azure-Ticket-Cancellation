@@ -1,6 +1,6 @@
 // src/lib/fetcher.ts
 export const fetcher = async (url: string) => {
-  const res = await fetch(url);
+  const res = await fetch(url, { credentials: "include" });
   if (!res.ok) {
     const errorData = await res.json();
     throw new Error(errorData.message || "An error occurred while fetching data.");
