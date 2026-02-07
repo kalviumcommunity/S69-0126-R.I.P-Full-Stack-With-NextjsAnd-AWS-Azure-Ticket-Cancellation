@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 
 const ThreeBackground = dynamic(() => import("./ThreeBackground"), {
   ssr: false,
@@ -37,128 +37,24 @@ export default function HomeClient() {
   const accentForIndex = (index: number) =>
     accentCycle[index % accentCycle.length];
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const parallaxStateRef = useRef({ scroll: 0, lastScroll: 0, scale: 1 });
-  const rafRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const updateVars = () => {
-      if (!rootRef.current) return;
-      const state = parallaxStateRef.current;
-      rootRef.current.style.setProperty("--parallax-scroll", `${state.scroll}px`);
-      rootRef.current.style.setProperty("--parallax-mx", "0");
-      rootRef.current.style.setProperty("--parallax-my", "0");
-      rafRef.current = window.requestAnimationFrame(updateVars);
-    };
-
-    const handleScroll = () => {
-      parallaxStateRef.current.scroll = window.scrollY;
-    };
-
-    handleScroll();
-    rafRef.current = window.requestAnimationFrame(updateVars);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      if (rafRef.current !== null) {
-        window.cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!rootRef.current) return;
-    const elements = Array.from(
-      rootRef.current.querySelectorAll<HTMLElement>("[data-reveal]")
-    );
-    if (!elements.length) return;
-
-    const revealState = new Map<HTMLElement, number>();
-    elements.forEach((element) => {
-      const depth = Number(element.dataset.depth ?? "0.2");
-      revealState.set(element, Number.isNaN(depth) ? 0.2 : depth);
-    });
-
-    let rafId = 0;
-    const updateReveal = () => {
-      const state = parallaxStateRef.current;
-      const scrollY = state.scroll;
-      const delta = scrollY - state.lastScroll;
-      const targetScale = delta > 0 ? 1.015 : delta < 0 ? 0.985 : 1;
-      state.scale += (targetScale - state.scale) * 0.12;
-      state.lastScroll = scrollY;
-
-      elements.forEach((element) => {
-        const depth = revealState.get(element) ?? 0.2;
-        const offset = scrollY * depth;
-        element.style.setProperty("--reveal-offset", `${offset}px`);
-        element.style.setProperty("--reveal-scale", state.scale.toFixed(4));
-      });
-      rafId = window.requestAnimationFrame(updateReveal);
-    };
-
-    rafId = window.requestAnimationFrame(updateReveal);
-
-    return () => {
-      window.cancelAnimationFrame(rafId);
-    };
-  }, []);
 
   return (
     <main
       ref={rootRef}
       className="relative min-h-screen overflow-hidden bg-[#0a0a0a] text-slate-100"
     >
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          transform:
-            "translate3d(0, calc(var(--parallax-scroll, 0px) * 0.16), 0)",
-        }}
-      >
-        <ThreeBackground />
-      </div>
-      <div
-        className="pointer-events-none absolute inset-0 opacity-40"
-        style={{
-          transform:
-            "translate3d(0, calc(var(--parallax-scroll, 0px) * 0.08), 0)",
-        }}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.08),transparent_40%),radial-gradient(circle_at_80%_60%,rgba(244,63,94,0.08),transparent_45%)]" />
-      </div>
+      <ThreeBackground />
 
       {/* Ambient background */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.08),transparent_55%),radial-gradient(circle_at_20%_20%,rgba(244,63,94,0.12),transparent_45%),radial-gradient(circle_at_85%_70%,rgba(16,185,129,0.1),transparent_45%)]" />
       <div className="pointer-events-none absolute left-1/2 top-6 h-24 w-[70%] -translate-x-1/2 rounded-full bg-slate-900/40 blur-3xl" />
-      <div
-        className="pointer-events-none absolute left-[-14%] top-[14%] h-72 w-72 rounded-full bg-rose-500/12 blur-[95px]"
-        style={{
-          transform:
-            "translate3d(calc(var(--parallax-mx, 0) * 24px), calc(var(--parallax-scroll, 0px) * 0.22 + var(--parallax-my, 0) * 18px), 0)",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute right-[-16%] top-[40%] h-80 w-80 rounded-full bg-cyan-400/12 blur-[120px]"
-        style={{
-          transform:
-            "translate3d(calc(var(--parallax-mx, 0) * -18px), calc(var(--parallax-scroll, 0px) * 0.16 + var(--parallax-my, 0) * 12px), 0)",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute left-[20%] top-[68%] h-64 w-64 rounded-full bg-emerald-400/10 blur-[110px]"
-        style={{
-          transform:
-            "translate3d(calc(var(--parallax-mx, 0) * 20px), calc(var(--parallax-scroll, 0px) * 0.28 + var(--parallax-my, 0) * -14px), 0)",
-        }}
-      />
+      <div className="pointer-events-none absolute left-[-14%] top-[14%] h-72 w-72 rounded-full bg-rose-500/12 blur-[95px]" />
+      <div className="pointer-events-none absolute right-[-16%] top-[40%] h-80 w-80 rounded-full bg-cyan-400/12 blur-[120px]" />
+      <div className="pointer-events-none absolute left-[20%] top-[68%] h-64 w-64 rounded-full bg-emerald-400/10 blur-[110px]" />
 
       <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-28 px-6 pb-32 pt-24">
         {/* ---------------- HERO ---------------- */}
-        <section
-          data-reveal
-          data-depth="0.22"
-          className="reveal grid gap-12 lg:grid-cols-[1.1fr_0.9fr]"
-        >
+        <section className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="flex flex-col gap-7">
             <div className="inline-flex items-center gap-3 self-start rounded-full border border-slate-800 bg-slate-900/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.32em] text-slate-300">
               <span className="h-2 w-2 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.7)]" />
@@ -226,18 +122,10 @@ export default function HomeClient() {
         </section>
 
         {/* Divider */}
-        <div
-          data-reveal
-          data-depth="0.1"
-          className="reveal h-px w-full bg-gradient-to-r from-transparent via-slate-800 to-transparent"
-        />
+        <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
 
         {/* ---------------- PASSENGER / ADMIN ---------------- */}
-        <section
-          data-reveal
-          data-depth="0.26"
-          className="reveal grid gap-10 lg:grid-cols-2"
-        >
+        <section className="grid gap-10 lg:grid-cols-2">
           <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-7">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
               For Passengers
@@ -290,19 +178,10 @@ export default function HomeClient() {
         </section>
 
         {/* Divider */}
-        <div
-          data-reveal
-          data-depth="0.1"
-          className="reveal h-px w-full bg-gradient-to-r from-transparent via-slate-800 to-transparent"
-        />
+        <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
 
         {/* ---------------- FLOW ---------------- */}
-        <section
-          id="flow"
-          data-reveal
-          data-depth="0.3"
-          className="reveal grid gap-10 lg:grid-cols-[0.95fr_1.05fr]"
-        >
+        <section id="flow" className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-7">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
               Admin Workflow
@@ -378,18 +257,10 @@ export default function HomeClient() {
         </section>
 
         {/* Divider */}
-        <div
-          data-reveal
-          data-depth="0.1"
-          className="reveal h-px w-full bg-gradient-to-r from-transparent via-slate-800 to-transparent"
-        />
+        <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
 
         {/* ---------------- NOTIFICATIONS ---------------- */}
-        <section
-          data-reveal
-          data-depth="0.24"
-          className="reveal rounded-3xl border border-slate-800 bg-slate-900/60 p-7"
-        >
+        <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-7">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
             Notifications
           </p>
