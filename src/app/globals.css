@@ -26,11 +26,10 @@ body {
   font-family: "Space Grotesk", "IBM Plex Sans", "Segoe UI", sans-serif;
 }
 
-.reveal {
+ .reveal {
   opacity: 1;
-  transform: translateX(calc(var(--reveal-offset, 0px) * 0.02)) scale(var(--reveal-scale, 1));
-  transition: transform 0.6s ease;
-  will-change: transform;
+  transform: none;
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
